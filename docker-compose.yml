@@ -2,7 +2,7 @@ name: timinute
 
 services:
   app:
-    image: ghcr.io/jame581/timinute:${TIMINUTE_TAG:-latest}
+    image: ghcr.io/nrso2018/timinute:${TIMINUTE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       db:

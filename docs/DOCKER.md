@@ -26,7 +26,7 @@ The app comes up on `http://localhost:8080` (configurable via `TIMINUTE_PORT`). 
 Pin by digest in production to get deterministic, immutable deployments:
 
 ```yaml
-image: ghcr.io/jame581/timinute@sha256:abc123...
+image: ghcr.io/nrso2018/timinute@sha256:abc123...
 ```
 
 ## Configuration reference
@@ -230,7 +230,7 @@ For multi-replica deployments or DBA-managed schemas, disable the automatic migr
 docker run --rm \
     -e ConnectionStrings__DefaultConnection="Host=your-postgres-host;Port=5432;Database=Timinute;..." \
     -e DatabaseMigrationOnStartup=true \
-    ghcr.io/jame581/timinute:2.2.0
+    ghcr.io/nrso2018/timinute:2.2.0
 # exits 0 once migrations are done
 
 # Step 2: start (or roll) app replicas with migration disabled
