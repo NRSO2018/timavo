@@ -8,7 +8,7 @@ description: Use when a change to Timinute needs to be confirmed working in the 
 ## Launch
 
 1. Prereqs: .NET 10 SDK, Docker Desktop running, trusted dev cert (`dotnet dev-certs https --check --trust`).
-2. SQL container: check `docker ps -a --filter name=timinute.sql.server` FIRST. **`scripts\SetupDockerSql.ps1` force-removes an existing container and wipes its data** — only run it when the container is absent. Then `.\scripts\MigrateDatabase.ps1` (idempotent).
+2. DB container: check `docker ps -a --filter name=timinute.postgres` FIRST. **`scripts\SetupDockerPostgres.ps1` force-removes an existing container and wipes its data** — only run it when the container is absent. Then `.\scripts\MigrateDatabase.ps1` (idempotent).
 3. `dotnet build Timinute.sln` to fail fast, then run in a background shell:
    ```powershell
    dotnet run --project Timinute/Server/Timinute.Server.csproj
@@ -25,10 +25,10 @@ description: Use when a change to Timinute needs to be confirmed working in the 
 - Exercise **every entry point** of the changed component — shared dialogs/components are typically reachable from more than one page (e.g. the task edit dialog opens from both `/trackedtasks` and `/scheduler`, with separate result-handling code at each call site).
 - Prove persistence, not client state: after saving, hard-refresh (Ctrl+F5) and confirm values survived. For DB-level certainty:
   ```powershell
-  docker exec timinute.sql.server /opt/mssql-tools18/bin/sqlcmd -U sa -P "$($env:MSSQL_SA_PASSWORD ?? 'TiminuteAdmin.')" -No -Q "<query>" -d Timinute
+  docker exec timinute.postgres psql -U postgres -d Timinute -c "<query>"
   ```
 - Also hit the negative paths (validation messages block save) and, for deletes, the undo toast → restore.
 
 ## Wrap up
 
-Check the `dotnet run` console for server exceptions and the browser console for Blazor errors. Kill the background `dotnet run`; leave the SQL container running.
+Check the `dotnet run` console for server exceptions and the browser console for Blazor errors. Kill the background `dotnet run`; leave the DB container running.

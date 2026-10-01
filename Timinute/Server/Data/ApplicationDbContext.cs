@@ -77,7 +77,7 @@ namespace Timinute.Server.Data
 
             builder.Entity<Project>()
                 .HasIndex(p => new { p.UserId, p.Name })
-                .HasFilter("[DeletedAt] IS NULL")
+                .HasFilter("\"DeletedAt\" IS NULL")
                 .IsUnique();
 
             builder.Entity<TrackedTask>()
@@ -185,7 +185,7 @@ namespace Timinute.Server.Data
             // on DateTimeOffset columns. Store them as 64-bit binary values there so
             // range filters (e.g. the analytics endpoints) translate. All persisted
             // dates are UTC-normalized, so binary encoding preserves ordering.
-            // Production SQL Server is unaffected.
+            // Production (PostgreSQL) is unaffected.
             if (Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
             {
                 foreach (var entityType in builder.Model.GetEntityTypes())

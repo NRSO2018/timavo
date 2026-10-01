@@ -104,8 +104,8 @@ namespace Timinute.Server.Services.App
         {
             DtoValidator.Validate(dto);
 
-            // Whitespace means "no project"; trim otherwise — SQL Server's trailing-space padding would
-            // let "ProjectId1 " pass the ownership check and persist untrimmed in the FK column.
+            // Whitespace means "no project"; trim otherwise so "ProjectId1 " doesn't
+            // persist untrimmed in the FK column.
             dto.ProjectId = string.IsNullOrWhiteSpace(dto.ProjectId) ? null : dto.ProjectId.Trim();
 
             if (!await ProjectBelongsToUserAsync(userId, dto.ProjectId))
@@ -137,8 +137,8 @@ namespace Timinute.Server.Services.App
                 return null;
             }
 
-            // Whitespace means "no project"; trim otherwise — SQL Server's trailing-space padding would
-            // let "ProjectId1 " pass the ownership check and persist untrimmed in the FK column.
+            // Whitespace means "no project"; trim otherwise so "ProjectId1 " doesn't
+            // persist untrimmed in the FK column.
             dto.ProjectId = string.IsNullOrWhiteSpace(dto.ProjectId) ? null : dto.ProjectId.Trim();
 
             if (!await ProjectBelongsToUserAsync(userId, dto.ProjectId))

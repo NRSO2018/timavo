@@ -41,8 +41,8 @@ namespace Timinute.Server.Repository
         /// Asynchronously sums the projected <see cref="long"/> values for
         /// entities matching the optional filter. The projection is materialized
         /// and summed in memory rather than via a server-side SQL <c>SUM</c>:
-        /// the intended selector (<c>TimeSpan.Ticks</c> over a SQL Server
-        /// <c>time</c> column) has no SQL aggregate translation, and EF Core
+        /// the intended selector (<c>TimeSpan.Ticks</c> over a relational
+        /// interval/time column) has no SQL aggregate translation, and EF Core
         /// cannot client-evaluate an aggregate. The query is still scoped by
         /// <paramref name="filter"/> and honors EF global query filters
         /// (e.g. soft delete); only the projected column is transferred.

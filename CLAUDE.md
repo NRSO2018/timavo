@@ -29,9 +29,9 @@ dotnet test Timinute/Server.Tests/Timinute.Server.Tests.csproj --filter "FullyQu
 dotnet run --project Timinute/Server/Timinute.Server.csproj
 
 # Local infra (from repo root)
-.\scripts\SetupDockerSql.ps1     # SQL Server 2025 container on port 44555
-.\scripts\MigrateDatabase.ps1    # apply EF Core migrations
-# One env var, MSSQL_SA_PASSWORD, drives the SA password for the container, the app,
+.\scripts\SetupDockerPostgres.ps1  # PostgreSQL 16 container on port 5432
+.\scripts\MigrateDatabase.ps1      # apply EF Core migrations
+# One env var, POSTGRES_PASSWORD, drives the password for the container, the app,
 # and docker-compose; unset -> defaults to TiminuteAdmin. (see appsettings.json).
 # Program.cs only substitutes it when the connection string still carries that default.
 
@@ -62,7 +62,7 @@ docs/DOCKER.md    Self-host guide
 
 **Data access** goes through a generic repository + factory (`Server/Repository/`): controllers take `IRepositoryFactory` and create `IRepository<TEntity>`. The repository provides paging (`GetPaged` with dynamic-LINQ `orderBy` strings), string-based `includeProperties`, and soft delete (`SoftDelete`/`Restore`/`GetDeleted`/`PurgeExpired`). Soft delete is enforced by an EF **global query filter** — read the `CountAll` vs `CountAsync` and `SumAsync` doc comments in `IRepository.cs` before adding aggregate queries; some aggregates deliberately materialize client-side because they don't translate to SQL.
 
-**Ownership checks on every controller action** — all domain data is user-scoped; controllers filter by the authenticated user's id. Preserve this on any new endpoint. Client-supplied foreign keys need the same treatment: verify the FK belongs to the caller, normalize whitespace to `null`, and `Trim()` (SQL Server's trailing-space padding otherwise lets `"Id "` through the check and persists it untrimmed). Inbound AutoMapper maps must `.Ignore()` nested navigation DTOs (e.g. `CreateTrackedTaskDto.Project`) or a client can attach a whole entity to the insert graph.
+**Ownership checks on every controller action** — all domain data is user-scoped; controllers filter by the authenticated user's id. Preserve this on any new endpoint. Client-supplied foreign keys need the same treatment: verify the FK belongs to the caller, normalize whitespace to `null`, and `Trim()` (an untrimmed `"Id "` would otherwise fail the ownership match and persist untrimmed). Inbound AutoMapper maps must `.Ignore()` nested navigation DTOs (e.g. `CreateTrackedTaskDto.Project`) or a client can attach a whole entity to the insert graph.
 
 **Analytics** (`Server/Controllers/AnalyticsController.cs`): four range endpoints (`summary`/`daily`/`projects`/`tags`) filter by user + date range in SQL, then group and sum **in memory** — `SUM` over `TimeSpan` does not translate to SQL. `TzOffsetMinutes` buckets days by the user's local calendar day. On the client, `AnalyticsService` is a **singleton** URL-keyed cache, and must stay one: `AnalyticsCacheInvalidationHandler` (a `DelegatingHandler` that clears the cache on any successful non-GET) is constructed in HttpClientFactory's own DI scope, so a scoped service would clear the wrong instance. Cache keys truncate range ends to the minute — a tick-precision `Now` makes the cache inert.
 

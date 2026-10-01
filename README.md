@@ -53,13 +53,13 @@ Originally a demo of modern Blazor; now fully redesigned around the **Aurora** v
 
 ## Tech stack
 
-.NET 10 · Blazor WebAssembly (hosted) · EF Core 10 · SQL Server · Duende IdentityServer · Radzen.Blazor (dialogs/notifications only — design system is custom Aurora) · xUnit + Moq + bUnit (EF InMemory + SQLite test providers).
+.NET 10 · Blazor WebAssembly (hosted) · EF Core 10 · PostgreSQL · Duende IdentityServer · Radzen.Blazor (dialogs/notifications only — design system is custom Aurora) · xUnit + Moq + bUnit (EF InMemory + SQLite test providers).
 
 ## Prerequisites
 
 - [Visual Studio 2022 (17.x or newer)](https://visualstudio.microsoft.com/) or another .NET 10 IDE
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet)
-- [Docker Desktop](https://www.docker.com/get-started) — used for the local SQL Server 2025 container
+- [Docker Desktop](https://www.docker.com/get-started) — used for the local PostgreSQL container
 
 ## Getting Started
 
@@ -68,8 +68,8 @@ Originally a demo of modern Blazor; now fully redesigned around the **Aurora** v
 git clone https://github.com/jame581/Timinute.git
 cd Timinute
 
-# 2. start a local SQL Server 2025 container on port 44555
-.\scripts\SetupDockerSql.ps1
+# 2. start a local PostgreSQL 16 container on port 5432
+.\scripts\SetupDockerPostgres.ps1
 
 # 3. apply EF Core migrations
 .\scripts\MigrateDatabase.ps1
@@ -80,7 +80,7 @@ dotnet run --project Timinute/Server/Timinute.Server.csproj
 
 Default URLs: <https://localhost:7047> / <http://localhost:5047>. Swagger lives at `/swagger`.
 
-> **DB password:** a single environment variable, `MSSQL_SA_PASSWORD`, drives the SQL Server SA password everywhere — the local dev container (`SetupDockerSql.ps1`), the app, and docker-compose. Leave it unset and everything defaults to `TiminuteAdmin.` (as shipped in `appsettings.json`). Set it to use your own password; if you change it after the container already exists, re-run `SetupDockerSql.ps1` to recreate the container on the new password.
+> **DB password:** a single environment variable, `POSTGRES_PASSWORD`, drives the PostgreSQL password everywhere — the local dev container (`SetupDockerPostgres.ps1`), the app, and docker-compose. Leave it unset and everything defaults to `TiminuteAdmin.` (as shipped in `appsettings.json`). Set it to use your own password; if you change it after the container already exists, re-run `SetupDockerPostgres.ps1` to recreate the container on the new password.
 
 Seeded test users (passwords are intentionally trivial — local dev only):
 
@@ -96,11 +96,11 @@ Seeded test users (passwords are intentionally trivial — local dev only):
 git clone https://github.com/jame581/Timinute.git
 cd Timinute
 cp .env.example .env
-# edit .env: set MSSQL_SA_PASSWORD and IdentityServer__Authority
+# edit .env: set POSTGRES_PASSWORD and IdentityServer__Authority
 docker compose up -d
 ```
 
-The app comes up on `http://localhost:8080`. For real deployments, put a TLS-terminating reverse proxy in front and set `IdentityServer__Authority` to the public https URL. Full self-host guide (reverse proxy, external SQL, backups, upgrades): [`docs/DOCKER.md`](docs/DOCKER.md).
+The app comes up on `http://localhost:8080`. For real deployments, put a TLS-terminating reverse proxy in front and set `IdentityServer__Authority` to the public https URL. Full self-host guide (reverse proxy, external PostgreSQL, backups, upgrades): [`docs/DOCKER.md`](docs/DOCKER.md).
 
 ## AI / MCP
 
@@ -124,10 +124,10 @@ IdentityServer__Authority=https://timinute.example.com
 }
 ```
 
-**2. Connection string** — `appsettings.json` ships with the local Docker SA password so `dotnet run` works out of the box. Override for production:
+**2. Connection string** — `appsettings.json` ships with the local Docker password so `dotnet run` works out of the box. Override for production:
 
 ```bash
-ConnectionStrings__DefaultConnection="Server=...;Database=Timinute;User Id=...;Password=...;TrustServerCertificate=True;Encrypt=True"
+ConnectionStrings__DefaultConnection="Host=...;Port=5432;Database=Timinute;Username=...;Password=..."
 ```
 
 **3. Persistent `/keys` directory** — Duende IdentityServer uses automatic key management in production and writes rotating signing keys to `/keys`. On ephemeral hosts (Docker without a volume mount, App Service slot swaps, scaled-out replicas) this directory disappears or differs per instance, which invalidates JWTs after restart and breaks load balancing. Mount a persistent volume at the container's `/keys` (or override the path via `IdentityServer:KeyManagement:KeyPath` if your hosting prefers a different location).

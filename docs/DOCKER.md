@@ -1,6 +1,6 @@
 # Running Timinute with Docker
 
-Timinute publishes a multi-arch Docker image (`linux/amd64` + `linux/arm64`) to GitHub Container Registry. The bundled `docker-compose.yml` starts the app alongside a SQL Server container for a five-minute self-host experience. For production you typically replace the bundled SQL with your own and run Timinute behind a reverse proxy that handles TLS.
+Timinute publishes a multi-arch Docker image (`linux/amd64` + `linux/arm64`) to GitHub Container Registry. The bundled `docker-compose.yml` starts the app alongside a PostgreSQL container for a five-minute self-host experience. For production you typically replace the bundled PostgreSQL with your own and run Timinute behind a reverse proxy that handles TLS.
 
 ## Quick start
 
@@ -8,7 +8,7 @@ Timinute publishes a multi-arch Docker image (`linux/amd64` + `linux/arm64`) to 
 git clone https://github.com/jame581/Timinute.git
 cd Timinute
 cp .env.example .env
-# edit .env: set MSSQL_SA_PASSWORD and IdentityServer__Authority
+# edit .env: set POSTGRES_PASSWORD and IdentityServer__Authority
 docker compose up -d
 ```
 
@@ -35,7 +35,7 @@ All settings flow through ASP.NET Core's hierarchical configuration — environm
 
 | Variable                                     | Default (in container)    | Purpose                                                   |
 |----------------------------------------------|---------------------------|-----------------------------------------------------------|
-| `ConnectionStrings__DefaultConnection`       | _(set in compose)_        | SQL Server connection string                              |
+| `ConnectionStrings__DefaultConnection`       | _(set in compose)_        | PostgreSQL connection string                               |
 | `IdentityServer__Authority`                  | `https://localhost:7047`  | OIDC issuer URL — must exactly match the browser URL      |
 | `IdentityServer__KeyManagement__KeyPath`     | `/keys`                   | Directory for Duende signing keys (rarely changed)        |
 | `DataProtection__KeyPath`                    | `/keys/data-protection`   | Directory for ASP.NET data protection keys (rarely changed) |
@@ -69,7 +69,7 @@ A mismatch between `IdentityServer__Authority` and the actual browser URL produc
 
 | Volume          | Mount path inside container | Holds                                                       |
 |-----------------|-----------------------------|------------------------------------------------------------|
-| `timinute-data` | `/var/opt/mssql`            | SQL Server data and logs (bundled DB only)                  |
+| `timinute-data` | `/var/lib/postgresql/data`  | PostgreSQL data and logs (bundled DB only)                   |
 | `timinute-keys` | `/keys`                     | IdentityServer signing keys AND ASP.NET data protection keys |
 
 The `timinute-keys` volume holds two subdirectories:
@@ -84,13 +84,12 @@ Losing `timinute-data` means losing all user data.
 ### Backing up
 
 ```bash
-# Snapshot SQL data via sqlcmd inside the db container
-docker compose exec db bash -c \
-  "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"\$MSSQL_SA_PASSWORD\" -No \
-   -Q 'BACKUP DATABASE Timinute TO DISK = N\"/var/opt/mssql/data/Timinute.bak\" WITH FORMAT, INIT'"
+# Snapshot the database via pg_dump inside the db container
+docker compose exec db pg_dump -U postgres -Fc -d Timinute \
+  -f "/tmp/Timinute-$(date +%Y%m%d).dump"
 
-docker cp "$(docker compose ps -q db):/var/opt/mssql/data/Timinute.bak" \
-  "./Timinute-$(date +%Y%m%d).bak"
+docker cp "$(docker compose ps -q db):/tmp/Timinute-$(date +%Y%m%d).dump" \
+  "./Timinute-$(date +%Y%m%d).dump"
 
 # Snapshot signing and data-protection keys
 docker run --rm \
@@ -192,9 +191,9 @@ location /mcp {
 
 **TLS strongly recommended.** The bearer token travels on every request. On an HTTP-only deployment, PATs cross the wire in cleartext — put a TLS-terminating reverse proxy in front of any internet-facing instance (see [Reverse proxy](#reverse-proxy) above).
 
-## External SQL Server
+## External PostgreSQL
 
-To use an existing SQL Server instead of the bundled one:
+To use an existing PostgreSQL instance instead of the bundled one:
 
 1. Comment out the entire `db` service block in `docker-compose.yml`.
 2. Remove the `depends_on` block from the `app` service (it references `db`).
@@ -207,11 +206,11 @@ To use an existing SQL Server instead of the bundled one:
    Then add to `.env`:
 
    ```bash
-   ConnectionStrings__DefaultConnection=Server=your-sql-host,1433;Database=Timinute;User Id=sa;Password=...;TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=true
+   ConnectionStrings__DefaultConnection=Host=your-postgres-host;Port=5432;Database=Timinute;Username=postgres;Password=...
    ```
 
-4. `MSSQL_SA_PASSWORD` is no longer used; remove it from `.env`.
-5. With `DatabaseMigrationOnStartup=true` (the Docker default), EF Core will create the database if it doesn't already exist, *provided* the SQL login has `CREATE DATABASE` permission. Restricted logins should pre-create the database (empty) and grant the login `db_owner` on it.
+4. `POSTGRES_PASSWORD` is no longer used; remove it from `.env`.
+5. With `DatabaseMigrationOnStartup=true` (the Docker default), EF Core will create the schema if it doesn't already exist, *provided* the login has sufficient privileges on the target database. Restricted logins should pre-create the (empty) database and grant the login ownership of it.
 
 ## Upgrading
 
@@ -229,7 +228,7 @@ For multi-replica deployments or DBA-managed schemas, disable the automatic migr
 ```bash
 # Step 1: apply migrations with a short-lived container
 docker run --rm \
-    -e ConnectionStrings__DefaultConnection="Server=your-sql-host,1433;Database=Timinute;..." \
+    -e ConnectionStrings__DefaultConnection="Host=your-postgres-host;Port=5432;Database=Timinute;..." \
     -e DatabaseMigrationOnStartup=true \
     ghcr.io/jame581/timinute:2.2.0
 # exits 0 once migrations are done
@@ -285,15 +284,15 @@ docker inspect timinute_timinute-keys
 
 If the volume was deleted (e.g. via `docker compose down -v`), it cannot be recovered without a backup. All users must log in again. This is expected behavior for a clean teardown — use `docker compose down` (without `-v`) for routine restarts.
 
-**SQL container stuck in `starting` or `unhealthy` (~30–60s on first boot)**
+**DB container stuck in `starting` or `unhealthy` (~30–60s on first boot)**
 
-Normal. SQL Server initializes `master`, `tempdb`, and system databases on first start. The healthcheck has a `start_period: 30s` for this. If the container stays `unhealthy` past 5 minutes, check:
+Normal. PostgreSQL initializes its data directory on first start. The healthcheck has a `start_period: 30s` for this. If the container stays `unhealthy` past 5 minutes, check:
 
 ```bash
 docker compose logs db
 ```
 
-Common causes: `MSSQL_SA_PASSWORD` does not satisfy SQL Server's complexity rules (8+ characters, mixed case, at least one digit, at least one symbol); or the `timinute-data` volume was initialized with a different password (recreate with `docker compose down -v`, noting this destroys all data).
+Common causes: the `timinute-data` volume was initialized with a different `POSTGRES_PASSWORD` or `POSTGRES_USER` (Postgres only applies these on first init; recreate the volume with `docker compose down -v` to pick up a changed password, noting this destroys all data).
 
 **App starts but immediately exits — "Cannot open database" or migration failure**
 

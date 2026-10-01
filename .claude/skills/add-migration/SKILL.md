@@ -23,7 +23,7 @@ Generate, verify, and locally apply a migration for `Timinute.Server`. The argum
    - Column nullability/length must match the entity's annotations.
    - If the change touches a seeded table (`HasData` in `ApplicationDbContext`): non-nullable columns without defaults break the SQLite test helper (`EnsureCreatedAsync` builds schema from the model + seed). Update the seed in the same commit.
 
-4. **Apply locally** — check the container first: `docker ps -a --filter name=timinute.sql.server`. Run `.\scripts\SetupDockerSql.ps1` ONLY if it is absent — the script force-removes an existing container and wipes its data (if it exists but is stopped, `docker start timinute.sql.server`). Then:
+4. **Apply locally** — check the container first: `docker ps -a --filter name=timinute.postgres`. Run `.\scripts\SetupDockerPostgres.ps1` ONLY if it is absent — the script force-removes an existing container and wipes its data (if it exists but is stopped, `docker start timinute.postgres`). Then:
    ```powershell
    cd scripts; .\MigrateDatabase.ps1; cd ..
    ```

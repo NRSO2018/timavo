@@ -4,17 +4,11 @@
       "type": "http",
       "url": "https://learn.microsoft.com/api/mcp"
     },
-    "mssql": {
+    "postgres": {
       "command": "npx",
-      "args": ["-y", "mssql-mcp@latest"],
+      "args": ["-y", "@henkey/postgres-mcp-server@latest"],
       "env": {
-        "DB_SERVER": "127.0.0.1",
-        "DB_PORT": "44555",
-        "DB_DATABASE": "Timinute",
-        "DB_USER": "sa",
-        "DB_PASSWORD": "${MSSQL_SA_PASSWORD:-TiminuteAdmin.}",
-        "DB_ENCRYPT": "true",
-        "DB_TRUST_SERVER_CERTIFICATE": "true"
+        "POSTGRES_CONNECTION_STRING": "postgresql://postgres:${POSTGRES_PASSWORD:-TiminuteAdmin.}@127.0.0.1:5432/Timinute"
       }
     }
   }

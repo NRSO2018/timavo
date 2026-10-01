@@ -676,7 +676,7 @@ namespace Timinute.Server.Tests.Controllers
                 Name = "Trailing Space Task",
                 StartDate = DateTimeOffset.UtcNow,
                 Duration = TimeSpan.FromHours(1),
-                ProjectId = "ProjectId1 " // SQL Server trailing-space padding would match; must be trimmed before persisting
+                ProjectId = "ProjectId1 " // must be trimmed before persisting
             };
 
             var actionResult = await controller.CreateTrackedTask(trackedTaskToCreate);

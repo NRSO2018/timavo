@@ -26,24 +26,24 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
-// Local-dev convenience: let MSSQL_SA_PASSWORD (the same var the container and
-// docker-compose use) drive the app's SA password too, so one variable unifies
+// Local-dev convenience: let POSTGRES_PASSWORD (the same var the container and
+// docker-compose use) drive the app's connection password too, so one variable unifies
 // everything. Guarded to the built-in dev default only — an explicit connection
 // override (production) or the compose string (already password-substituted) has a
 // different password and is left untouched.
-var saPassword = Environment.GetEnvironmentVariable("MSSQL_SA_PASSWORD");
-if (!string.IsNullOrEmpty(saPassword) && !string.IsNullOrEmpty(connectionString))
+var postgresPassword = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD");
+if (!string.IsNullOrEmpty(postgresPassword) && !string.IsNullOrEmpty(connectionString))
 {
-    var csb = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString);
+    var csb = new Npgsql.NpgsqlConnectionStringBuilder(connectionString);
     if (csb.Password == "TiminuteAdmin.")
     {
-        csb.Password = saPassword;
+        csb.Password = postgresPassword;
         connectionString = csb.ConnectionString;
     }
 }
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseNpgsql(connectionString));
 
 // A DbContext *factory* alongside the scoped AddDbContext above (Task 8). McpActivitySink
 // needs a fresh context per audit write: on a tool's DbUpdateException the request-scoped
@@ -53,7 +53,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // registered them Scoped (TryAdd, first wins) — a Singleton factory would then fail to resolve
 // the scoped options from the root provider. Matching lifetimes keeps both registrations valid.
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString), ServiceLifetime.Scoped);
+    options.UseNpgsql(connectionString), ServiceLifetime.Scoped);
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 

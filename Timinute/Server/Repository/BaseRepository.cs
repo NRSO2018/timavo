@@ -264,7 +264,7 @@ namespace Timinute.Server.Repository
                 query = query.Where(filter);
             // The projected values are materialized, then summed in memory.
             // EF Core can client-evaluate a selector in the final projection
-            // (e.g. TimeSpan.Ticks over a SQL Server `time` column) but NOT
+            // (e.g. TimeSpan.Ticks over a relational interval/time column) but NOT
             // inside a server-side SUM — query.Select(selector).SumAsync()
             // throws "could not be translated" on any relational provider.
             // ToListAsync transfers only the projected column for the filtered

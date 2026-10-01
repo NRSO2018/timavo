@@ -18,8 +18,8 @@ namespace Timinute.Server.Tests.Integration
 
             builder.ConfigureTestServices(services =>
             {
-                // Swap SQL Server for InMemory — validation tests never hit data.
-                // AddDbContext registers the SqlServer configuration action as an
+                // Swap PostgreSQL for InMemory — validation tests never hit data.
+                // AddDbContext registers the Npgsql configuration action as an
                 // IDbContextOptionsConfiguration<T> (not just DbContextOptions<T>);
                 // leaving it in place makes the composed options carry both
                 // providers, which EF rejects at first use.
