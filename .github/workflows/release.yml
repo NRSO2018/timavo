@@ -21,13 +21,13 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore Timinute.sln
+        run: dotnet restore Timavo.sln
 
       - name: Build
-        run: dotnet build Timinute.sln --configuration Release --no-restore
+        run: dotnet build Timavo.sln --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test Timinute.sln --configuration Release --no-build --verbosity normal
+        run: dotnet test Timavo.sln --configuration Release --no-build --verbosity normal
 
   package:
     needs: build-and-test
@@ -36,10 +36,10 @@ jobs:
         include:
           - os: ubuntu-latest
             rid: linux-x64
-            artifact: timinute-linux-x64
+            artifact: timavo-linux-x64
           - os: windows-latest
             rid: win-x64
-            artifact: timinute-win-x64
+            artifact: timavo-win-x64
 
     runs-on: ${{ matrix.os }}
 
@@ -53,7 +53,7 @@ jobs:
 
       - name: Publish
         run: >
-          dotnet publish Timinute/Server/Timinute.Server.csproj
+          dotnet publish Timavo/Server/Timavo.Server.csproj
           --configuration Release
           --runtime ${{ matrix.rid }}
           --self-contained true

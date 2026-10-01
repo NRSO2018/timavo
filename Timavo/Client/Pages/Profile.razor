@@ -1,0 +1,303 @@
+@page "/profile"
+@attribute [Authorize]
+
+@using Timavo.Client.Helpers
+@using Timavo.Shared.Dtos
+
+@inject IHttpClientFactory ClientFactory
+@inject NavigationManager Navigation
+@inject Microsoft.AspNetCore.Components.WebAssembly.Authentication.SignOutSessionStateManager SignOutManager
+@inject Timavo.Client.Services.ThemeService ThemeService
+@inject Timavo.Client.Services.UserProfileService UserProfileService
+@inject Radzen.NotificationService NotificationService
+
+<PageTitle>User profile</PageTitle>
+
+<div class="aurora-profile-page">
+    @if (IsLoading)
+    {
+        <div class="aurora-profile-loading">Loading profile…</div>
+    }
+    else if (Me == null)
+    {
+        <AuroraCard>
+            <div class="aurora-profile-error">Could not load profile.</div>
+        </AuroraCard>
+    }
+    else
+    {
+        <AuroraCard>
+            <div class="aurora-profile__header">
+                <div class="aurora-profile__avatar">@Initials</div>
+                <div class="aurora-profile__meta">
+                    <div class="aurora-profile__name">@Me.FirstName @Me.LastName</div>
+                    <div class="aurora-profile__sub">@Me.Email · joined @Me.CreatedAt.ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</div>
+                </div>
+                <div class="aurora-profile__actions">
+                    <AuroraButton Variant="ghost" OnClick="BeginSignOut">Log out</AuroraButton>
+                    <AuroraButton Variant="primary" OnClick="EditMe">Edit profile</AuroraButton>
+                </div>
+            </div>
+
+            <div class="aurora-profile__stats">
+                <div class="aurora-profile-stat">
+                    <div class="aurora-profile-stat__label">Total tracked</div>
+                    <div class="aurora-profile-stat__value">@TotalTrackedDisplay</div>
+                </div>
+                <div class="aurora-profile-stat">
+                    <div class="aurora-profile-stat__label">Projects</div>
+                    <div class="aurora-profile-stat__value">@Me.ProjectCount</div>
+                </div>
+                <div class="aurora-profile-stat">
+                    <div class="aurora-profile-stat__label">Tasks logged</div>
+                    <div class="aurora-profile-stat__value">@Me.TaskCount</div>
+                </div>
+                <div class="aurora-profile-stat">
+                    <div class="aurora-profile-stat__label">Member since</div>
+                    <div class="aurora-profile-stat__value">@MemberSinceDisplay</div>
+                </div>
+            </div>
+        </AuroraCard>
+
+        <AuroraCard>
+            <div class="aurora-prefs__title">Preferences</div>
+
+            <div class="aurora-prefs__row">
+                <div class="aurora-prefs__label">Theme</div>
+                <div class="aurora-prefs__pills">
+                    @foreach (var option in ThemeOptions)
+                    {
+                        var isSelected = CurrentTheme == option;
+                        <button type="button"
+                                class="aurora-prefs__pill @(isSelected ? "is-selected" : "")"
+                                disabled="@isThemeBusy"
+                                @onclick="() => SelectTheme(option)">
+                            @option.ToString()
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="aurora-prefs__row">
+                <div class="aurora-prefs__label">Weekly goal</div>
+                <div class="aurora-prefs__input-wrap">
+                    <input type="number" step="0.5" min="1" max="168"
+                           class="aurora-prefs__input"
+                           @bind="DraftWeeklyGoalHours" />
+                    <span class="aurora-prefs__suffix">h</span>
+                </div>
+            </div>
+
+            <div class="aurora-prefs__row">
+                <div class="aurora-prefs__label">Workday</div>
+                <div class="aurora-prefs__input-wrap">
+                    <input type="number" step="0.5" min="0.5" max="24"
+                           class="aurora-prefs__input"
+                           @bind="DraftWorkdayHoursPerDay" />
+                    <span class="aurora-prefs__suffix">h</span>
+                </div>
+            </div>
+
+            <div class="aurora-prefs__footer">
+                <AuroraButton Variant="primary" OnClick="SavePreferences" Disabled="@isSaving">
+                    @(isSaving ? "Saving…" : "Save preferences")
+                </AuroraButton>
+            </div>
+        </AuroraCard>
+    }
+</div>
+
+@code {
+    private static readonly ThemePreference[] ThemeOptions = new[] { ThemePreference.Light, ThemePreference.Dark, ThemePreference.System };
+
+    private bool IsLoading = true;
+    private UserProfileDto? Me;
+    private ThemePreference CurrentTheme = ThemePreference.System;
+    private decimal DraftWeeklyGoalHours = 32.0m;
+    private decimal DraftWorkdayHoursPerDay = 8.0m;
+    private bool isSaving;
+    private bool isThemeBusy;
+
+    private string Initials =>
+        Me == null ? "?" :
+            (string.IsNullOrWhiteSpace(Me.FirstName) ? "" : Me.FirstName.Trim()[0].ToString()) +
+            (string.IsNullOrWhiteSpace(Me.LastName) ? "" : Me.LastName.Trim()[0].ToString());
+
+    private string TotalTrackedDisplay
+    {
+        get
+        {
+            if (Me == null) return "0h";
+            var t = Me.TotalTrackedTime;
+            var h = (int)t.TotalHours;
+            return $"{h}h {t.Minutes:00}m";
+        }
+    }
+
+    private string MemberSinceDisplay
+    {
+        get
+        {
+            if (Me == null) return "—";
+            var span = DateTimeOffset.UtcNow - Me.CreatedAt;
+            var totalMonths = (int)(span.TotalDays / 30.4375);
+            var years = totalMonths / 12;
+            var months = totalMonths % 12;
+            return years > 0 ? $"{years}y {months}mo" : $"{months}mo";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Me = await UserProfileService.GetCurrentAsync();
+            if (Me?.Preferences != null)
+            {
+                CurrentTheme = Me.Preferences.Theme;
+                DraftWeeklyGoalHours = Me.Preferences.WeeklyGoalHours;
+                DraftWorkdayHoursPerDay = Me.Preferences.WorkdayHoursPerDay;
+
+                // Apply the theme locally; UserProfileService already holds
+                // the cached profile so MainLayout won't re-fetch.
+                await ThemeService.SyncFromServerAsync(Me.Preferences);
+            }
+        }
+        catch
+        {
+            Me = null;
+        }
+        IsLoading = false;
+    }
+
+    private async Task SelectTheme(ThemePreference choice)
+    {
+        if (Me?.Preferences == null || isThemeBusy || CurrentTheme == choice) return;
+
+        var previous = CurrentTheme;
+        isThemeBusy = true;
+        CurrentTheme = choice;
+        StateHasChanged();
+
+        try
+        {
+            await ThemeService.SetAsync(choice, Me.Preferences);
+            // Persist the new value into the local Me cache so a subsequent
+            // Save preferences click (numeric fields) doesn't ship a stale theme.
+            Me.Preferences.Theme = choice;
+        }
+        catch (Exception ex)
+        {
+            // Revert via ApplyLocalAsync (no PUT) so a flaky network can't
+            // throw a second exception out of the catch block.
+            CurrentTheme = previous;
+            try { await ThemeService.ApplyLocalAsync(previous); } catch { /* best-effort revert */ }
+            NotificationService.Notify(Radzen.NotificationSeverity.Error, "Could not save theme", ex.Message, 4000);
+        }
+        finally
+        {
+            isThemeBusy = false;
+        }
+    }
+
+    private async Task SavePreferences()
+    {
+        if (Me?.Preferences == null || isSaving) return;
+
+        isSaving = true;
+        try
+        {
+            var client = ClientFactory.CreateClient(Constants.API.ClientName);
+            var dto = new UpdateUserPreferencesDto
+            {
+                Theme = CurrentTheme,
+                WeeklyGoalHours = DraftWeeklyGoalHours,
+                WorkdayHoursPerDay = DraftWorkdayHoursPerDay,
+            };
+            // NOTE: invalidate after any mutation that changes /User/me's payload —
+            // keeps Profile/Dashboard/Topbar consistent. ThemeService.SetAsync does
+            // the same after its PUT path.
+            var response = await client.PutAsJsonAsync("User/me/preferences", dto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                // 422 carries ValidationProblemDetails (per Server/Program.cs's
+                // InvalidModelStateResponseFactory); 400 from the controller's
+                // own ModelState branch carries the same shape. Surface the
+                // per-field messages instead of EnsureSuccessStatusCode's
+                // generic "Response status code does not indicate success".
+                var detail = await TryReadValidationDetailAsync(response);
+                NotificationService.Notify(Radzen.NotificationSeverity.Error, "Could not save preferences", detail, 4000);
+                return;
+            }
+
+            await UserProfileService.InvalidateAsync();
+
+            var saved = await response.Content.ReadFromJsonAsync<UserPreferencesDto>();
+            if (saved != null)
+            {
+                Me.Preferences = saved;
+                CurrentTheme = saved.Theme;
+                DraftWeeklyGoalHours = saved.WeeklyGoalHours;
+                DraftWorkdayHoursPerDay = saved.WorkdayHoursPerDay;
+            }
+
+            NotificationService.Notify(Radzen.NotificationSeverity.Success, "Preferences saved", string.Empty, 2500);
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(Radzen.NotificationSeverity.Error, "Could not save preferences", ex.Message, 4000);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static async Task<string> TryReadValidationDetailAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            using var stream = await response.Content.ReadAsStreamAsync();
+            using var doc = await System.Text.Json.JsonDocument.ParseAsync(stream);
+            if (doc.RootElement.TryGetProperty("errors", out var errors) && errors.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                var parts = new List<string>();
+                foreach (var field in errors.EnumerateObject())
+                {
+                    if (field.Value.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var msg in field.Value.EnumerateArray())
+                        {
+                            var text = msg.GetString();
+                            if (!string.IsNullOrWhiteSpace(text))
+                                parts.Add($"{field.Name}: {text}");
+                        }
+                    }
+                }
+                if (parts.Count > 0) return string.Join("; ", parts);
+            }
+            if (doc.RootElement.TryGetProperty("title", out var title))
+            {
+                var t = title.GetString();
+                if (!string.IsNullOrWhiteSpace(t)) return t!;
+            }
+        }
+        catch
+        {
+            // Body wasn't JSON or wasn't shaped like ValidationProblemDetails — fall through.
+        }
+        return $"Server returned {(int)response.StatusCode} {response.ReasonPhrase}.";
+    }
+
+    private void EditMe()
+    {
+        Navigation.NavigateTo("authentication/profile");
+    }
+
+    private async Task BeginSignOut()
+    {
+        await SignOutManager.SetSignOutState();
+        Navigation.NavigateTo("authentication/logout");
+    }
+}

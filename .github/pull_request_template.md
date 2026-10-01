@@ -14,6 +14,6 @@
 
 ## Test plan
 
-- [ ] `dotnet build Timinute.sln` succeeds
-- [ ] `dotnet test Timinute.sln` — all tests pass
+- [ ] `dotnet build Timavo.sln` succeeds
+- [ ] `dotnet test Timavo.sln` — all tests pass
 - [ ] <!-- Add manual verification steps for any UI changes here -->

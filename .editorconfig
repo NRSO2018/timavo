@@ -1,4 +1,4 @@
-# EditorConfig for Timinute — consumed by IDEs and `dotnet format`.
+# EditorConfig for Timavo — consumed by IDEs and `dotnet format`.
 root = true
 
 [*]

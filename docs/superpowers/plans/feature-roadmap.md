@@ -1,4 +1,4 @@
-# Timinute Feature Roadmap
+# Timavo Feature Roadmap
 
 _Last reviewed: 2026-07-19 — v2.4 (`feature/v2.4-logging-mcp`, PR #65): Serilog structured request logging + correlation ids, and an MCP server (7 tools, PAT auth, AI activity audit log) — see below._
 
@@ -73,13 +73,13 @@ Status reviewed 2026-07-13.
 | Item | Status | Notes |
 |------|--------|-------|
 | Build & Test workflow disabled | ✅ done | Was registered but `disabled_manually`; re-enabled 2026-07-12 (id 20059071). PR #48 is the green-run acceptance check. |
-| Constants class growing large — split per domain | ✅ done | PR #48 (v2.3) — partial-class split (`Constants.Roles/Claims/Api`) + auth magic strings (`Timinute.ServerAPI`, authority fallback, `Default120`) consolidated |
+| Constants class growing large — split per domain | ✅ done | PR #48 (v2.3) — partial-class split (`Constants.Roles/Claims/Api`) + auth magic strings (`Timavo.ServerAPI`, authority fallback, `Default120`) consolidated |
 | Request/response logging middleware | ✅ done | PR #48 (v2.3) — built-in `AddHttpLogging` (method/path/status/duration, never headers/bodies), off by default, `HttpLogging__Enabled` env-var gated. **v2.4:** replaced AddHttpLogging with Serilog (UseSerilogRequestLogging) + per-request correlation id; console (JSON in prod) always on, rolling file sink opt-in. |
 | DB indexes on UserId, ProjectId | ✅ done | Shipped in PR #46 (v2.2) — `IX_TrackedTasks_UserId`, `IX_TrackedTasks_ProjectId`, `IX_Projects_UserId` |
 | Composite indexes for common analytics queries | ✅ done | Shipped in PR #46 (v2.2) — `IX_TrackedTasks_UserId_StartDate` |
 | Unique constraint: project names per user | ✅ done | Shipped in PR #46 (v2.2) — filtered unique `IX_Projects_UserId_Name` (`[DeletedAt] IS NULL`) + 409 handling |
 | API versioning for future breaking changes | ✅ done | PR #48 (v2.3) — `Asp.Versioning.Mvc` (`.AddMvc()` required — bare `AddApiVersioning` never attaches to controllers), implicit v1.0, `api-supported-versions` reported; unknown explicit `?api-version=` now 400s (client never sends it) |
-| Server-side validation tests as integration tests | ✅ done | PR #48 (v2.3) — `TiminuteApiFactory` (`WebApplicationFactory<Program>`) + `ValidationIntegrationTest` exercising the `[ApiController]` 422 short-circuit through the real pipeline |
+| Server-side validation tests as integration tests | ✅ done | PR #48 (v2.3) — `TimavoApiFactory` (`WebApplicationFactory<Program>`) + `ValidationIntegrationTest` exercising the `[ApiController]` 422 short-circuit through the real pipeline |
 | ProjectId ownership validation on tracked-task create/update | ✅ done | Found by `ef-repository-reviewer` during v2.3 (pre-existing): foreign `ProjectId` was persisted and leaked the project's Name/Color via `Include(Project)` endpoints. Fixed in PR #48 with tests. PR #49 hardened the same path: whitespace `ProjectId` normalized to null (was an FK-violation 500), values trimmed (SQL Server trailing-space padding), and the nested `Project` DTO member ignored on inbound maps (client could attach a whole `Project` entity to the insert graph). Cross-entity FK sweep done as part of #49 — `TagIds` and query-string `projectId` paths verified safe. |
 | Unified `UserProfileService` to dedupe `GET /User/me` | ✅ done | Shipped in PR #44 — `UserProfileService` owns a cached `GET /User/me`; ThemeService, Profile, and Dashboard now route through it (one read per session). |
 | Extract common DataGrid logic | ✅ moot | Aurora replaced `RadzenDataGrid` with custom row layouts; no shared grid logic remains |
@@ -107,7 +107,7 @@ Status reviewed 2026-07-13.
 
 | Feature | PRs |
 |---------|-----|
-| Security patch — closed all 12 open CodeQL alerts with **zero suppressions**. Deleted the unreachable `ExternalLogin` Identity page (no external provider is registered, so it could never be reached — #23, #24). Deleted `wwwroot/lib`, 2.2 MB of vendored JS that nothing referenced but that *was* published and served — a 2017-era jquery-validation 1.17.0 was reachable at `/lib/...` in production (#3–#7). Log calls now emit the entity ID from the ownership-scoped DB lookup rather than the raw route parameter, breaking the taint path (#18–#22). `returnUrl` is sanitized on GET via a shared `ReturnUrlSanitizer` instead of only at `LocalRedirect` time (#25, #26). Added baseline security headers (`X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`) and Dependabot for NuGet + Actions. CSP deferred: it interacts with Blazor's OIDC silent-renew iframe. | [#51](https://github.com/jame581/Timinute/pull/51) |
+| Security patch — closed all 12 open CodeQL alerts with **zero suppressions**. Deleted the unreachable `ExternalLogin` Identity page (no external provider is registered, so it could never be reached — #23, #24). Deleted `wwwroot/lib`, 2.2 MB of vendored JS that nothing referenced but that *was* published and served — a 2017-era jquery-validation 1.17.0 was reachable at `/lib/...` in production (#3–#7). Log calls now emit the entity ID from the ownership-scoped DB lookup rather than the raw route parameter, breaking the taint path (#18–#22). `returnUrl` is sanitized on GET via a shared `ReturnUrlSanitizer` instead of only at `LocalRedirect` time (#25, #26). Added baseline security headers (`X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`) and Dependabot for NuGet + Actions. CSP deferred: it interacts with Blazor's OIDC silent-renew iframe. | [#51](https://github.com/jame581/Timavo/pull/51) |
 
 ## Recently shipped (v2.3, 2026-07-13)
 
@@ -127,7 +127,7 @@ Status reviewed 2026-07-13.
 |---------|-----|
 | Docker distribution — multi-stage image on `aspnet:10.0`, `docker-compose.yml` bundling SQL Server 2025, GHCR multi-arch (`linux/amd64` + `linux/arm64`) publish on `v*` tag and `develop` push, `docs/DOCKER.md` self-host guide. Includes production-hardening fixes surfaced during smoke: `ForwardedHeaders` moved to first in pipeline, Duende `KeyPath` set via `IdentityServerOptions` (not `KeyManagementOptions`), `SameSite=Lax` cookie policy, persistent ASP.NET data protection keys, all Docker-specific defaults pushed into `Dockerfile` `ENV` (not baked into `Program.cs`). | #43 |
 | P1 review follow-ups bundle — `StartDate` made non-nullable on the TrackedTask Create/Update DTOs (with a `NonDefaultDateTimeOffsetAttribute` presence guard), `UserController.GetMe` aggregates project/task counts (`CountAsync` — server-side `COUNT`) and total tracked time (`SumAsync`) via new `IRepository<T>` methods, OS-color-scheme-change notification wired from `theme-bootstrap.js` into `ThemeService` (`RegisterOsChangeListenerAsync` + `[JSInvokable] NotifyResolvedThemeChangedAsync`), and a new `UserProfileService` caching `/User/me` so a session makes one read instead of 3-4. | #44 |
-| P1 post-merge follow-up — fixes the `GET /User/me` 500 shipped by #44 (`SumAsync` no longer attempts an untranslatable SQL `SUM` over `TimeSpan.Ticks`; it materializes the projected column and sums in memory). Adds the `Timinute.Client.Tests` project (`UserProfileService` + `ThemeService` coverage) and `RepositoryAggregationSqliteTest` — a SQLite-backed test that catches SQL-translation bugs the EF InMemory suite cannot. | #45 |
+| P1 post-merge follow-up — fixes the `GET /User/me` 500 shipped by #44 (`SumAsync` no longer attempts an untranslatable SQL `SUM` over `TimeSpan.Ticks`; it materializes the projected column and sums in memory). Adds the `Timavo.Client.Tests` project (`UserProfileService` + `ThemeService` coverage) and `RepositoryAggregationSqliteTest` — a SQLite-backed test that catches SQL-translation bugs the EF InMemory suite cannot. | #45 |
 
 ## Recently shipped (v2.1, 2026-04-29)
 

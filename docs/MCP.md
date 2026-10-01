@@ -1,6 +1,6 @@
 # Connecting an AI assistant over MCP
 
-Timinute hosts a [Model Context Protocol](https://modelcontextprotocol.io/) server alongside the web app, so an AI assistant — Claude Code, Claude Desktop, or any other MCP-capable client — can read and (optionally) log your time directly, using the same account data you see in the app. No separate service to run: it's the same container, a different endpoint.
+Timavo hosts a [Model Context Protocol](https://modelcontextprotocol.io/) server alongside the web app, so an AI assistant — Claude Code, Claude Desktop, or any other MCP-capable client — can read and (optionally) log your time directly, using the same account data you see in the app. No separate service to run: it's the same container, a different endpoint.
 
 ## The endpoint
 
@@ -14,7 +14,7 @@ For a local dev run that's `https://localhost:7047/mcp`; for a self-hosted insta
 
 Open **API Tokens** (under **Account** in the sidebar, `/settings/tokens`) and click **New token**. Give it a name (e.g. "Claude Code"), pick a scope, and optionally an expiry (30 days / 90 days / 1 year / no expiry), then create it.
 
-The token is shown **once**, in full, right after creation — copy it immediately. Timinute never stores or displays the plaintext again; only a prefix (for identifying the token in the list) and its SHA-256 hash are kept. If you lose it, revoke it and create a new one.
+The token is shown **once**, in full, right after creation — copy it immediately. Timavo never stores or displays the plaintext again; only a prefix (for identifying the token in the list) and its SHA-256 hash are kept. If you lose it, revoke it and create a new one.
 
 Token format: `tmn_pat_` followed by a random string, e.g. `tmn_pat_AbCdEf01234...`.
 
@@ -23,7 +23,7 @@ Token format: `tmn_pat_` followed by a random string, e.g. `tmn_pat_AbCdEf01234.
 ### Claude Code
 
 ```bash
-claude mcp add --transport http timinute https://your-host/mcp --header "Authorization: Bearer tmn_pat_..."
+claude mcp add --transport http timavo https://your-host/mcp --header "Authorization: Bearer tmn_pat_..."
 ```
 
 ### Claude Desktop / other HTTP-transport clients
@@ -33,7 +33,7 @@ Clients that support a declarative config file for remote MCP servers generally 
 ```json
 {
   "mcpServers": {
-    "timinute": {
+    "timavo": {
       "type": "http",
       "url": "https://your-host/mcp",
       "headers": {
@@ -75,7 +75,7 @@ Every tool call — success or failure — is recorded and viewable on the **AI 
 
 ## Security notes
 
-- **Shown once, hashed at rest.** The plaintext token is displayed only immediately after creation. Timinute stores a SHA-256 hash plus an 8-character prefix — never the plaintext.
+- **Shown once, hashed at rest.** The plaintext token is displayed only immediately after creation. Timavo stores a SHA-256 hash plus an 8-character prefix — never the plaintext.
 - **Revocation is immediate.** Revoking a token (from the API Tokens page) takes effect on its very next request — every call re-validates the token against the database, there's no caching window to wait out.
 - **Optional expiry.** Set a token to expire in 30 days, 90 days, or a year, or leave it with no expiry.
 - **PAT works only at `/mcp`.** A personal access token authenticates nowhere else — not the REST API, not the web login. Sending one to any other endpoint is rejected the same as no credential at all.

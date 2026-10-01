@@ -1,0 +1,321 @@
+using AutoMapper;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using System.Text.Json;
+using Timavo.Server.Helpers;
+using Timavo.Server.Models;
+using Timavo.Server.Models.Paging;
+using Timavo.Server.Repository;
+using Timavo.Server.Services.App;
+using Timavo.Shared.Dtos.Paging;
+using Timavo.Shared.Dtos.Project;
+using Timavo.Shared.Dtos.Trash;
+
+namespace Timavo.Server.Controllers
+{
+    [Authorize]
+    [ApiController]
+    [Route("[controller]")]
+    public class ProjectController : ControllerBase
+    {
+        private readonly IRepository<Project> projectRepository;
+        private readonly IRepository<TrackedTask> taskRepository;
+        private readonly IMapper mapper;
+        private readonly ILogger<ProjectController> logger;
+        private readonly IConfiguration configuration;
+        private readonly IProjectAppService projectAppService;
+
+        public ProjectController(IRepositoryFactory repositoryFactory, IMapper mapper, ILogger<ProjectController> logger, IConfiguration configuration, IProjectAppService projectAppService)
+        {
+            this.mapper = mapper;
+            this.logger = logger;
+            this.configuration = configuration;
+            this.projectAppService = projectAppService;
+
+            projectRepository = repositoryFactory.GetRepository<Project>();
+            taskRepository = repositoryFactory.GetRepository<TrackedTask>();
+        }
+
+        // GET: api/Projects
+        [HttpGet(Name = "Projects")]
+        public async Task<ActionResult<IEnumerable<ProjectDto>>> GetProjects([FromQuery] PagingParameters projectParameters)
+        {
+            // get current user ID
+            var userId = User.FindFirstValue(Constants.Claims.UserId);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            var pagedProjectList = await projectRepository.GetPaged(projectParameters, project => project.UserId == userId);
+
+            var metadata = new PaginationHeaderDto
+            {
+                TotalCount = pagedProjectList.TotalCount,
+                PageSize = pagedProjectList.PageSize,
+                CurrentPage = pagedProjectList.CurrentPage,
+                TotalPages = pagedProjectList.TotalPages,
+                HasNext = pagedProjectList.HasNext,
+                HasPrevious = pagedProjectList.HasPrevious
+            };
+
+            Response.Headers.Add("X-Pagination", JsonSerializer.Serialize(metadata));
+            return Ok(mapper.Map<IEnumerable<ProjectDto>>(pagedProjectList));
+        }
+
+        // GET: api/Project/search
+        [HttpGet("search")]
+        public async Task<ActionResult<IEnumerable<ProjectDto>>> SearchProjects(
+            [FromQuery] PagingParameters pagingParameters,
+            [FromQuery] string? search = null,
+            [FromQuery] int? minTaskCount = null)
+        {
+            var userId = User.FindFirstValue(Constants.Claims.UserId);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            if (minTaskCount.HasValue && minTaskCount.Value < 0)
+            {
+                return BadRequest("minTaskCount must be >= 0.");
+            }
+
+            var normalizedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+
+            var pagedProjectList = await projectRepository.GetPaged(pagingParameters,
+                p => p.UserId == userId
+                    && (normalizedSearch == null || p.Name.Contains(normalizedSearch))
+                    && (!minTaskCount.HasValue || p.TrackedTasks!.Count >= minTaskCount.Value),
+                orderBy: nameof(Project.Name));
+
+            var metadata = new PaginationHeaderDto
+            {
+                TotalCount = pagedProjectList.TotalCount,
+                PageSize = pagedProjectList.PageSize,
+                CurrentPage = pagedProjectList.CurrentPage,
+                TotalPages = pagedProjectList.TotalPages,
+                HasNext = pagedProjectList.HasNext,
+                HasPrevious = pagedProjectList.HasPrevious
+            };
+
+            Response.Headers.Add("X-Pagination", JsonSerializer.Serialize(metadata));
+            return Ok(mapper.Map<IEnumerable<ProjectDto>>(pagedProjectList));
+        }
+
+        // GET: api/Project
+        [HttpGet("{id}")]
+        public async Task<ActionResult<ProjectDto>> GetProject(string id)
+        {
+            var userId = User.FindFirstValue(Constants.Claims.UserId);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            var project = await projectRepository.GetById(id);
+            if (project == null || project.UserId != userId)
+            {
+                return NotFound("Project not found!");
+            }
+            return Ok(mapper.Map<ProjectDto>(project));
+        }
+
+        // CREATE: api/Project
+        [HttpPost]
+        public async Task<ActionResult<ProjectDto>> CreateProject([FromBody] CreateProjectDto project)
+        {
+            var userId = User.FindFirstValue(Constants.Claims.UserId);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            try
+            {
+                var created = await projectAppService.CreateAsync(userId, project);
+                return Ok(created);
+            }
+            catch (AppValidationException ex)
+            {
+                // Safety net: [ApiController] already validated the body with a 422 before this
+                // action ran, so REST requests never reach here — this only fires if the DTO
+                // contract and the model-validation pipeline ever diverge.
+                return UnprocessableEntity(new { message = ex.Message });
+            }
+            catch (ProjectNameConflictException ex)
+            {
+                logger.LogWarning(ex, "Duplicate project name detected for user {UserId}.", userId);
+                return Conflict(new { message = "A project with this name already exists." });
+            }
+        }
+
+        // DELETE: api/Project
+        [HttpDelete("{id}")]
+        public async Task<ActionResult> DeleteProject(string id)
+        {
+            var userId = User.FindFirstValue(Constants.Claims.UserId);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            var projectToDelete = await projectRepository.GetById(id);
+            if (projectToDelete == null)
+            {
+                logger.LogError("Project was not found");
+                return NotFound("Project not found!");
+            }
+
+            if (projectToDelete.UserId != userId)
+            {
+                return NotFound("Project not found!");
+            }
+
+            var deletedAt = DateTimeOffset.UtcNow;
+
+            // Soft-delete active child tasks with the same timestamp for cascade-restore matching.
+            var activeChildTasks = (await taskRepository.Get(t => t.ProjectId == id)).ToList();
+            foreach (var task in activeChildTasks)
+            {
+                task.DeletedAt = deletedAt;
+                await taskRepository.Update(task);
+            }
+
+            projectToDelete.DeletedAt = deletedAt;
+            await projectRepository.Update(projectToDelete);
+
+            logger.LogInformation("Project with Id {ProjectId} soft-deleted along with {TaskCount} tasks.", projectToDelete.ProjectId, activeChildTasks.Count);
+            return NoContent();
+        }
+
+        // RESTORE: api/Project/{id}/restore
+        [HttpPost("{id}/restore")]
+        public async Task<ActionResult> RestoreProject(string id)
+        {
+            var userId = User.FindFirstValue(Constants.Claims.UserId);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            var deleted = (await projectRepository.GetDeleted(p => p.ProjectId == id && p.UserId == userId)).FirstOrDefault();
+            if (deleted == null)
+            {
+                return NotFound("Project not found!");
+            }
+
+            var projectDeletedAt = deleted.DeletedAt!.Value;
+
+            // Restore child tasks whose DeletedAt matches the project's (cascaded together).
+            var siblingTasks = (await taskRepository.GetDeleted(t => t.ProjectId == id && t.DeletedAt == projectDeletedAt)).ToList();
+            foreach (var task in siblingTasks)
+            {
+                task.DeletedAt = null;
+                await taskRepository.Update(task);
+            }
+
+            await projectRepository.Restore(id);
+
+            logger.LogInformation("Project with Id {ProjectId} restored along with {TaskCount} tasks.", deleted.ProjectId, siblingTasks.Count);
+            return NoContent();
+        }
+
+        // GET: api/Project/trash
+        [HttpGet("trash")]
+        public async Task<ActionResult<IEnumerable<TrashItemDto>>> GetTrashProjects()
+        {
+            var userId = User.FindFirstValue(Constants.Claims.UserId);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            var retentionDays = configuration.GetValue<int>("TrashRetention:Days", 30);
+            var now = DateTimeOffset.UtcNow;
+
+            var deleted = await projectRepository.GetDeleted(p => p.UserId == userId);
+
+            var items = deleted.Select(p => new TrashItemDto
+            {
+                Id = p.ProjectId,
+                Name = p.Name,
+                DeletedAt = p.DeletedAt!.Value,
+                DaysRemaining = Math.Max(0, (int)Math.Ceiling(retentionDays - (now - p.DeletedAt.Value).TotalDays))
+            });
+
+            return Ok(items);
+        }
+
+        // PURGE: api/Project/{id}/purge
+        [HttpDelete("{id}/purge")]
+        public async Task<ActionResult> PurgeProject(string id)
+        {
+            var userId = User.FindFirstValue(Constants.Claims.UserId);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            var deleted = (await projectRepository.GetDeleted(p => p.ProjectId == id && p.UserId == userId)).FirstOrDefault();
+            if (deleted == null)
+            {
+                return NotFound("Project not found!");
+            }
+
+            await projectRepository.Delete(id);
+
+            logger.LogInformation("Project with Id {ProjectId} was purged.", deleted.ProjectId);
+            return NoContent();
+        }
+
+        // UPDATE: api/Project
+        [HttpPut]
+        public async Task<ActionResult<ProjectDto>> UpdateProject([FromBody] UpdateProjectDto project)
+        {
+            var userId = User.FindFirstValue(Constants.Claims.UserId);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            var foundProject = await projectRepository.GetById(project.ProjectId);
+
+            if (foundProject == null)
+            {
+                logger.LogError("Project was not found");
+                return NotFound("Project not found!");
+            }
+
+            if (foundProject.UserId != userId)
+            {
+                return NotFound("Project not found!");
+            }
+
+            var updatedProject = mapper.Map(project, foundProject);
+
+            try
+            {
+                await projectRepository.Update(updatedProject);
+            }
+            catch (DbUpdateException ex) when (UniqueConstraintDetector.IsUniqueConstraintViolation(ex))
+            {
+                logger.LogWarning(ex, "Duplicate project name detected for user {UserId}.", userId);
+                return Conflict(new { message = "A project with this name already exists." });
+            }
+
+            return Ok(mapper.Map<ProjectDto>(updatedProject));
+        }
+    }
+}

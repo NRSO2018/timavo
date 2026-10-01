@@ -1,0 +1,29 @@
+﻿@page "/"
+@using Timavo.Client.Components.Dashboard
+
+@inject NavigationManager Navigation
+
+@if (User.Identity.IsAuthenticated)
+{
+    <PageTitle>Dashboard</PageTitle>
+    <Dashboard />
+}
+else
+{
+    <PageTitle>Timavo</PageTitle>
+    <LandingPart/>
+}
+
+@code
+{
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationStateTask { get; set; }
+
+    public System.Security.Claims.ClaimsPrincipal? User { get; set; }
+
+    protected async override Task OnInitializedAsync()
+    {
+        var authState = await authenticationStateTask;
+        User = authState.User;
+    }
+}

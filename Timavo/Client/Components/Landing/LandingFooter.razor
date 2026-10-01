@@ -1,0 +1,21 @@
+@code {
+    private const string GitHubUrl = "https://github.com/NRSO2018/timavo";
+    private const string LicenseUrl = "https://github.com/NRSO2018/timavo/blob/master/LICENSE";
+    private int Year => System.DateTime.UtcNow.Year;
+}
+
+<footer class="lfooter">
+    <div class="lfooter__brand">
+        <div class="lfooter__mark">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="13" r="7.5" />
+                <path d="M12 9v4l2.5 2" />
+            </svg>
+        </div>
+        <span>© @Year Timavo</span>
+    </div>
+    <div class="lfooter__links">
+        <a class="lfooter__link" href="@GitHubUrl" target="_blank" rel="noopener">GitHub</a>
+        <a class="lfooter__link" href="@LicenseUrl" target="_blank" rel="noopener">License (MIT)</a>
+    </div>
+</footer>

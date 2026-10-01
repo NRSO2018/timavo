@@ -1,14 +1,14 @@
 ---
 name: release-notes
-description: Use when the user runs /release-notes <version> to draft release notes for a Timinute release from the git history, EF migrations, and specs since the previous tag.
+description: Use when the user runs /release-notes <version> to draft release notes for a Timavo release from the git history, EF migrations, and specs since the previous tag.
 disable-model-invocation: true
 ---
 
-# Draft Timinute release notes
+# Draft Timavo release notes
 
-Produce release notes for a tagged Timinute release. The argument is the target version (e.g. `v2.4`). If none was given, ask — never invent it.
+Produce release notes for a tagged Timavo release. The argument is the target version (e.g. `v2.4`). If none was given, ask — never invent it.
 
-Timinute releases are tagged `v*`; the tag triggers `release.yml` (platform packages) and `latest`/semver Docker images. Notes must call out anything an operator upgrading a live instance has to do — that is the whole point of the "migration note" convention in the README.
+Timavo releases are tagged `v*`; the tag triggers `release.yml` (platform packages) and `latest`/semver Docker images. Notes must call out anything an operator upgrading a live instance has to do — that is the whole point of the "migration note" convention in the README.
 
 ## Steps
 
@@ -16,7 +16,7 @@ Timinute releases are tagged `v*`; the tag triggers `release.yml` (platform pack
 
 2. **Gather the raw material** across that range:
    - Merged PRs / commits: `git log <prevTag>..HEAD --no-merges --pretty="%s"` and `git log <prevTag>..HEAD --merges --pretty="%s"`. Group by Conventional-Commit prefix (`feat`, `fix`, `chore`, `docs`).
-   - **New EF migrations:** `git diff --name-only <prevTag>..HEAD -- Timinute/Server/Data/Migrations/`. Every new migration is a potential operator action — open each and note table/column changes, especially anything touching `AspNetUsers` or dropping/renaming tables.
+   - **New EF migrations:** `git diff --name-only <prevTag>..HEAD -- Timavo/Server/Data/Migrations/`. Every new migration is a potential operator action — open each and note table/column changes, especially anything touching `AspNetUsers` or dropping/renaming tables.
    - **Specs shipped:** new files in `docs/superpowers/specs/` in range give the intent behind features; the roadmap header (`docs/superpowers/plans/feature-roadmap.md`) records what the last release was.
    - Package bumps: `git diff <prevTag>..HEAD -- "*.csproj"` for notable dependency changes (Duende, EF Core, Radzen).
 

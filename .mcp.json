@@ -8,7 +8,7 @@
       "command": "npx",
       "args": ["-y", "@henkey/postgres-mcp-server@latest"],
       "env": {
-        "POSTGRES_CONNECTION_STRING": "postgresql://postgres:${POSTGRES_PASSWORD:-TiminuteAdmin.}@127.0.0.1:5432/Timinute"
+        "POSTGRES_CONNECTION_STRING": "postgresql://postgres:${POSTGRES_PASSWORD:-TimavoAdmin.}@127.0.0.1:5432/Timavo"
       }
     }
   }

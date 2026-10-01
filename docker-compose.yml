@@ -1,8 +1,8 @@
-name: timinute
+name: timavo
 
 services:
   app:
-    image: ghcr.io/nrso2018/timinute:${TIMINUTE_TAG:-latest}
+    image: ghcr.io/nrso2018/timavo:${TIMAVO_TAG:-latest}
     restart: unless-stopped
     depends_on:
       db:
@@ -10,13 +10,13 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: >-
-        Host=db;Port=5432;Database=Timinute;Username=postgres;
+        Host=db;Port=5432;Database=Timavo;Username=postgres;
         Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       IdentityServer__Authority: ${IdentityServer__Authority:?set IdentityServer__Authority in .env}
     ports:
-      - "${TIMINUTE_PORT:-8080}:8080"
+      - "${TIMAVO_PORT:-8080}:8080"
     volumes:
-      - timinute-keys:/keys
+      - timavo-keys:/keys
 
   db:
     image: postgres:16-alpine
@@ -24,16 +24,16 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: Timinute
+      POSTGRES_DB: Timavo
     volumes:
-      - timinute-data:/var/lib/postgresql/data
+      - timavo-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d Timinute"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d Timavo"]
       interval: 10s
       timeout: 5s
       retries: 30
       start_period: 30s
 
 volumes:
-  timinute-keys:
-  timinute-data:
+  timavo-keys:
+  timavo-data:

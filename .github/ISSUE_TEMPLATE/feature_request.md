@@ -8,7 +8,7 @@ assignees: ''
 
 ## What
 
-<!-- What you'd like Timinute to do that it doesn't today. One paragraph. -->
+<!-- What you'd like Timavo to do that it doesn't today. One paragraph. -->
 
 ## Why
 

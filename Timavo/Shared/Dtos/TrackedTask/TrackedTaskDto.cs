@@ -1,0 +1,19 @@
+﻿using Timavo.Shared.Dtos.Project;
+using Timavo.Shared.Dtos.Tag;
+
+namespace Timavo.Shared.Dtos.TrackedTask
+{
+    public class TrackedTaskDto
+    {
+        public string TaskId { get; set; } = null!;
+        public string Name { get; set; } = null!;
+        public TimeSpan Duration { get; set; }
+        public DateTimeOffset StartDate { get; set; }
+        public DateTimeOffset? EndDate { get; set; }
+        public string? ProjectId { get; set; }
+        public ProjectDto? Project { get; set; }
+        public List<TagDto> Tags { get; set; } = new();
+        public string UserId { get; set; } = null!;
+        public ApplicationUserDto User { get; set; } = null!;
+    }
+}

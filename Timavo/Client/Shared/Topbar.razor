@@ -1,0 +1,266 @@
+@implements IAsyncDisposable
+@using Timavo.Shared.Dtos
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthState
+@inject Radzen.DialogService DialogService
+@inject IJSRuntime JS
+@inject Timavo.Client.Services.MobileSheetService Sheet
+@inject Timavo.Client.Services.ThemeService Theme
+
+<header class="aurora-topbar">
+    <div class="aurora-topbar__left">
+        <h1 class="aurora-topbar__title">@CurrentTitle</h1>
+        <p class="aurora-topbar__subtitle">@CurrentSubtitle</p>
+    </div>
+
+    <div class="aurora-topbar__right">
+        @if (!IsMobile)
+        {
+            <div class="aurora-search">
+                <span class="aurora-search__icon">
+                    <AuroraIcons Name="search" Size="16" />
+                </span>
+                <input type="text" class="aurora-search__input" placeholder="Search tasks, projects…" />
+                <span class="aurora-search__chip">⌘K</span>
+            </div>
+
+            <button type="button"
+                    class="aurora-topbar__icon-btn"
+                    @onclick="ToggleTheme"
+                    disabled="@isThemeBusy"
+                    aria-label="@(isDarkResolved ? "Switch to light theme" : "Switch to dark theme")"
+                    title="@(isDarkResolved ? "Switch to light" : "Switch to dark")">
+                <AuroraIcons Name="@(isDarkResolved ? "sun" : "moon")" Size="16" />
+            </button>
+
+            <button class="aurora-quick-add" @onclick="OpenQuickAdd">
+                <AuroraIcons Name="plus" Size="16" />
+                <span>Quick add</span>
+            </button>
+        }
+        else
+        {
+            <button type="button" class="aurora-topbar__avatar" @onclick="OpenSheet" aria-label="More">
+                @Initials
+            </button>
+        }
+    </div>
+</header>
+
+@code {
+    private static readonly Dictionary<string, (string Title, string Subtitle)> RouteTitles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [""]                       = ("Dashboard",     "Welcome back, {0}. Here's your week so far."),
+        ["timetracker"]            = ("Time tracker",  "Hit play, get back to work."),
+        ["trackedtasks"]           = ("Tracked tasks", "Every minute you've logged."),
+        ["scheduler"]              = ("Calendar",      "See your week at a glance."),
+        ["projectmanager"]         = ("Projects",      "Keep your work organised."),
+        ["tags"]                   = ("Tags",          "Organize work with labels."),
+        ["profile"]                = ("User profile",  "Your account, your data."),
+        ["trash"]                  = ("Trash",         "Restore or permanently delete."),
+        ["settings/tokens"]        = ("API Tokens",    "Connect an AI assistant over MCP."),
+        ["settings/ai-activity"]   = ("AI activity",   "Every action your AI assistant took."),
+    };
+
+    [CascadingParameter(Name = "IsMobile")] public bool IsMobile { get; set; }
+
+    private string CurrentTitle = "Timavo";
+    private string CurrentSubtitle = "";
+    private string FirstName = "";
+    private string LastName = "";
+    private IJSObjectReference? shortcutsModule;
+
+    // Tracks the *resolved* light/dark applied to <html data-theme>. Initial
+    // value resolved from the bootstrap script via ThemeService on first
+    // render; updated via Theme.Changed when toggling from Topbar or Profile,
+    // or when MainLayout's server sync brings in a different theme. Note:
+    // this state is NOT updated by the bootstrap's matchMedia listener for
+    // mid-session OS-theme changes — those re-apply data-theme on <html>
+    // but don't notify Blazor. The icon resolves correctly on next render.
+    private ThemePreference currentThemeChoice = ThemePreference.System;
+    private bool isDarkResolved;
+    private bool isThemeBusy;
+
+    private string Initials
+    {
+        get
+        {
+            var f = string.IsNullOrWhiteSpace(FirstName) ? "" : FirstName.Trim()[0].ToString();
+            var l = string.IsNullOrWhiteSpace(LastName) ? "" : LastName.Trim()[0].ToString();
+            var combined = (f + l).ToUpperInvariant();
+            return combined.Length == 0 ? "?" : combined;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        Theme.Changed += OnThemeChanged;
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var user = auth.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            FirstName = user.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value
+                       ?? user.Identity.Name?.Split('@')[0]
+                       ?? "";
+            LastName = user.FindFirst(System.Security.Claims.ClaimTypes.Surname)?.Value ?? "";
+        }
+        Resolve();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Skip the Cmd/Ctrl+K module on mobile — the search input isn't rendered
+        // and there's no on-screen keyboard affordance for the shortcut.
+        if (firstRender && !IsMobile && shortcutsModule is null)
+        {
+            shortcutsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/topbar-shortcuts.js");
+            await shortcutsModule.InvokeVoidAsync("registerCmdKFocus", ".aurora-search__input");
+        }
+
+        // First render: read the bootstrap-applied theme so the icon matches
+        // what's already on screen.
+        if (firstRender)
+        {
+            currentThemeChoice = await Theme.GetCurrentAsync();
+            isDarkResolved = await ResolveIsDarkAsync(currentThemeChoice);
+            StateHasChanged();
+        }
+    }
+
+    private async Task<bool> ResolveIsDarkAsync(ThemePreference choice)
+    {
+        if (choice == ThemePreference.Dark) return true;
+        if (choice == ThemePreference.Light) return false;
+        // System: read the resolved value from the bootstrap script (which
+        // already applied data-theme to <html>). CSP-safe — no eval.
+        try
+        {
+            var resolved = await JS.InvokeAsync<string?>("__theme.getResolved");
+            return string.Equals(resolved, "dark", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task ToggleTheme()
+    {
+        if (isThemeBusy) return;
+
+        var next = isDarkResolved ? ThemePreference.Light : ThemePreference.Dark;
+        var previousChoice = currentThemeChoice;
+        var previousIsDark = isDarkResolved;
+
+        isThemeBusy = true;
+        currentThemeChoice = next;
+        isDarkResolved = next == ThemePreference.Dark;
+        StateHasChanged();
+
+        try
+        {
+            await Theme.SetThemeOnlyAsync(next);
+        }
+        catch
+        {
+            // Revert UI; ApplyLocalAsync re-applies the previous theme to
+            // <html data-theme> + localStorage without re-PUTting.
+            currentThemeChoice = previousChoice;
+            isDarkResolved = previousIsDark;
+            try { await Theme.ApplyLocalAsync(previousChoice); } catch { /* best-effort */ }
+        }
+        finally
+        {
+            isThemeBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnThemeChanged(ThemePreference value)
+    {
+        // Fired by ThemeService whenever theme changes anywhere (here, Profile,
+        // server sync). Update local state without a re-PUT.
+        //
+        // Skip while ToggleTheme is in flight: it already owns the optimistic
+        // UI state, and SetThemeOnlyAsync re-fires Changed on its own success
+        // path. Without this guard the queued lambda would re-apply the same
+        // value mid-toggle, causing a redundant render.
+        if (isThemeBusy) return;
+
+        InvokeAsync(async () =>
+        {
+            try
+            {
+                currentThemeChoice = value;
+                isDarkResolved = await ResolveIsDarkAsync(value);
+                StateHasChanged();
+            }
+            catch (ObjectDisposedException) { /* component gone */ }
+            catch (JSDisconnectedException) { /* circuit gone */ }
+        });
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        Resolve();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void Resolve()
+    {
+        var current = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var queryIdx = current.IndexOf('?');
+        if (queryIdx >= 0) current = current.Substring(0, queryIdx);
+        var fragIdx = current.IndexOf('#');
+        if (fragIdx >= 0) current = current.Substring(0, fragIdx);
+        current = current.TrimEnd('/');
+
+        // Try exact match first, then prefix match
+        if (RouteTitles.TryGetValue(current, out var exact))
+        {
+            CurrentTitle = exact.Title;
+            CurrentSubtitle = string.Format(exact.Subtitle, FirstName);
+            return;
+        }
+
+        foreach (var kv in RouteTitles)
+        {
+            if (kv.Key.Length == 0) continue;
+            if (current.StartsWith(kv.Key + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                CurrentTitle = kv.Value.Title;
+                CurrentSubtitle = string.Format(kv.Value.Subtitle, FirstName);
+                return;
+            }
+        }
+
+        CurrentTitle = "Timavo";
+        CurrentSubtitle = "";
+    }
+
+    private async Task OpenQuickAdd()
+    {
+        await DialogService.OpenAsync<Timavo.Client.Components.TrackedTasks.AddTrackedTask>(
+            "Quick add",
+            new Dictionary<string, object?>(),
+            new Radzen.DialogOptions { Width = "640px" });
+    }
+
+    private void OpenSheet() => Sheet.Show();
+
+    public async ValueTask DisposeAsync()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        Theme.Changed -= OnThemeChanged;
+        if (shortcutsModule is not null)
+        {
+            try
+            {
+                await shortcutsModule.InvokeVoidAsync("unregisterCmdKFocus");
+                await shortcutsModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException) { }
+        }
+    }
+}

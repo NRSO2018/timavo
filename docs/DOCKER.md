@@ -1,18 +1,18 @@
-# Running Timinute with Docker
+# Running Timavo with Docker
 
-Timinute publishes a multi-arch Docker image (`linux/amd64` + `linux/arm64`) to GitHub Container Registry. The bundled `docker-compose.yml` starts the app alongside a PostgreSQL container for a five-minute self-host experience. For production you typically replace the bundled PostgreSQL with your own and run Timinute behind a reverse proxy that handles TLS.
+Timavo publishes a multi-arch Docker image (`linux/amd64` + `linux/arm64`) to GitHub Container Registry. The bundled `docker-compose.yml` starts the app alongside a PostgreSQL container for a five-minute self-host experience. For production you typically replace the bundled PostgreSQL with your own and run Timavo behind a reverse proxy that handles TLS.
 
 ## Quick start
 
 ```bash
-git clone https://github.com/jame581/Timinute.git
-cd Timinute
+git clone https://github.com/NRSO2018/timavo.git
+cd Timavo
 cp .env.example .env
 # edit .env: set POSTGRES_PASSWORD and IdentityServer__Authority
 docker compose up -d
 ```
 
-The app comes up on `http://localhost:8080` (configurable via `TIMINUTE_PORT`). For production, put a reverse proxy in front with a real TLS certificate and set `IdentityServer__Authority` to the public https URL (e.g. `https://timinute.example.com`).
+The app comes up on `http://localhost:8080` (configurable via `TIMAVO_PORT`). For production, put a reverse proxy in front with a real TLS certificate and set `IdentityServer__Authority` to the public https URL (e.g. `https://timavo.example.com`).
 
 ## Image tags
 
@@ -26,7 +26,7 @@ The app comes up on `http://localhost:8080` (configurable via `TIMINUTE_PORT`). 
 Pin by digest in production to get deterministic, immutable deployments:
 
 ```yaml
-image: ghcr.io/nrso2018/timinute@sha256:abc123...
+image: ghcr.io/nrso2018/timavo@sha256:abc123...
 ```
 
 ## Configuration reference
@@ -46,7 +46,7 @@ All settings flow through ASP.NET Core's hierarchical configuration — environm
 | `TrashRetention__Days`                       | `30`                      | Soft-delete retention days before hard-purge              |
 | `TrashRetention__PurgeIntervalHours`         | `24`                      | How often the background purge service runs               |
 | `Serilog__File__Enabled`                     | `false`                   | Write daily-rolling compact-JSON log files to `Serilog__File__Path`. Off by default; console logs (`docker logs`) are always on. See the [Logs](#logs) section. |
-| `Serilog__File__Path`                        | `/logs/timinute-.log`     | File-sink path — mount a volume here to persist logs. Only used when `Serilog__File__Enabled=true`. |
+| `Serilog__File__Path`                        | `/logs/timavo-.log`     | File-sink path — mount a volume here to persist logs. Only used when `Serilog__File__Enabled=true`. |
 | `Serilog__File__RetainedFileCountLimit`      | `14`                      | Number of rolled daily log files to retain. |
 | `Serilog__MinimumLevel__Default`             | `Information`             | Global minimum log level: `Debug` < `Information` < `Warning` < `Error`. Development defaults to `Debug`. |
 | `Mcp__Enabled`                                | `true`                    | Enables the MCP server at `/mcp`. Set `false` to remove both the MCP services and the endpoint entirely — requests to `/mcp` then fall through to the SPA fallback (`index.html`). See [MCP server](#mcp-server). |
@@ -59,7 +59,7 @@ This value must **exactly** match the URL the user's browser uses to reach the a
 
 | Scenario                              | Correct value                         |
 |---------------------------------------|---------------------------------------|
-| Behind a reverse proxy with TLS       | `https://timinute.example.com`        |
+| Behind a reverse proxy with TLS       | `https://timavo.example.com`        |
 | Local smoke test, no proxy            | `http://localhost:8080`               |
 | Custom port, no TLS                   | `http://localhost:9000`               |
 
@@ -69,33 +69,33 @@ A mismatch between `IdentityServer__Authority` and the actual browser URL produc
 
 | Volume          | Mount path inside container | Holds                                                       |
 |-----------------|-----------------------------|------------------------------------------------------------|
-| `timinute-data` | `/var/lib/postgresql/data`  | PostgreSQL data and logs (bundled DB only)                   |
-| `timinute-keys` | `/keys`                     | IdentityServer signing keys AND ASP.NET data protection keys |
+| `timavo-data` | `/var/lib/postgresql/data`  | PostgreSQL data and logs (bundled DB only)                   |
+| `timavo-keys` | `/keys`                     | IdentityServer signing keys AND ASP.NET data protection keys |
 
-The `timinute-keys` volume holds two subdirectories:
+The `timavo-keys` volume holds two subdirectories:
 
 - `/keys` — Duende IdentityServer JWT signing keys
 - `/keys/data-protection` — ASP.NET Core data protection keys, which encrypt cookies, antiforgery tokens, and Duende's persisted signing keys at rest
 
-**Both subdirectories live in the same named volume.** Losing `timinute-keys` triggers two simultaneous failures: every user is immediately logged out (signing keys rotated), and the app throws `CryptographicException: The key {guid} was not found in the key ring` on the next request (the data protection keys that encrypted the old signing keys are also gone). Always back up this volume before any destructive operation.
+**Both subdirectories live in the same named volume.** Losing `timavo-keys` triggers two simultaneous failures: every user is immediately logged out (signing keys rotated), and the app throws `CryptographicException: The key {guid} was not found in the key ring` on the next request (the data protection keys that encrypted the old signing keys are also gone). Always back up this volume before any destructive operation.
 
-Losing `timinute-data` means losing all user data.
+Losing `timavo-data` means losing all user data.
 
 ### Backing up
 
 ```bash
 # Snapshot the database via pg_dump inside the db container
-docker compose exec db pg_dump -U postgres -Fc -d Timinute \
-  -f "/tmp/Timinute-$(date +%Y%m%d).dump"
+docker compose exec db pg_dump -U postgres -Fc -d Timavo \
+  -f "/tmp/Timavo-$(date +%Y%m%d).dump"
 
-docker cp "$(docker compose ps -q db):/tmp/Timinute-$(date +%Y%m%d).dump" \
-  "./Timinute-$(date +%Y%m%d).dump"
+docker cp "$(docker compose ps -q db):/tmp/Timavo-$(date +%Y%m%d).dump" \
+  "./Timavo-$(date +%Y%m%d).dump"
 
 # Snapshot signing and data-protection keys
 docker run --rm \
-  -v timinute-keys:/keys \
+  -v timavo-keys:/keys \
   -v "$(pwd)":/out \
-  alpine tar -czf "/out/timinute-keys-$(date +%Y%m%d).tar.gz" -C /keys .
+  alpine tar -czf "/out/timavo-keys-$(date +%Y%m%d).tar.gz" -C /keys .
 ```
 
 PowerShell users: replace `$(date +%Y%m%d)` with `$(Get-Date -Format yyyyMMdd)` in the snippets above.
@@ -104,9 +104,9 @@ To restore the keys volume from a backup:
 
 ```bash
 docker run --rm \
-  -v timinute-keys:/keys \
+  -v timavo-keys:/keys \
   -v "$(pwd)":/backup \
-  alpine tar -xzf /backup/timinute-keys-20260515.tar.gz -C /keys
+  alpine tar -xzf /backup/timavo-keys-20260515.tar.gz -C /keys
 ```
 
 ## Reverse proxy
@@ -120,8 +120,8 @@ Three examples:
 Caddy auto-provisions a Let's Encrypt certificate and forwards the necessary headers out of the box.
 
 ```caddyfile
-timinute.example.com {
-    reverse_proxy timinute-app:8080
+timavo.example.com {
+    reverse_proxy timavo-app:8080
 }
 ```
 
@@ -132,12 +132,12 @@ Add Caddy as a third service in compose or run it as a separate stack on a share
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name timinute.example.com;
-    ssl_certificate     /etc/letsencrypt/live/timinute.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/timinute.example.com/privkey.pem;
+    server_name timavo.example.com;
+    ssl_certificate     /etc/letsencrypt/live/timavo.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/timavo.example.com/privkey.pem;
 
     location / {
-        proxy_pass         http://timinute-app:8080;
+        proxy_pass         http://timavo-app:8080;
         proxy_set_header   Host               $host;
         proxy_set_header   X-Real-IP          $remote_addr;
         proxy_set_header   X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -156,17 +156,17 @@ Add these labels to the `app` service in `docker-compose.yml`:
 ```yaml
 labels:
   - "traefik.enable=true"
-  - "traefik.http.routers.timinute.rule=Host(`timinute.example.com`)"
-  - "traefik.http.routers.timinute.entrypoints=websecure"
-  - "traefik.http.routers.timinute.tls.certresolver=letsencrypt"
-  - "traefik.http.services.timinute.loadbalancer.server.port=8080"
+  - "traefik.http.routers.timavo.rule=Host(`timavo.example.com`)"
+  - "traefik.http.routers.timavo.entrypoints=websecure"
+  - "traefik.http.routers.timavo.tls.certresolver=letsencrypt"
+  - "traefik.http.services.timavo.loadbalancer.server.port=8080"
 ```
 
 Traefik sets forwarded headers automatically when using its standard HTTPS entrypoint.
 
 ## MCP server
 
-Timinute exposes a [Model Context Protocol](https://modelcontextprotocol.io/) server at `/mcp` so an AI assistant can read (and, with the right token scope, write) a user's own time-tracking data. Full user-facing walkthrough: [`docs/MCP.md`](MCP.md). Operational notes for self-hosters:
+Timavo exposes a [Model Context Protocol](https://modelcontextprotocol.io/) server at `/mcp` so an AI assistant can read (and, with the right token scope, write) a user's own time-tracking data. Full user-facing walkthrough: [`docs/MCP.md`](MCP.md). Operational notes for self-hosters:
 
 **Enable/disable.** Gated by `Mcp__Enabled` (default `true`). Setting `Mcp__Enabled=false` removes the MCP DI registrations (tools, activity sink, interceptor) and the `/mcp` route entirely — a request to `/mcp` then falls through to the SPA fallback (`index.html`) instead of hitting an endpoint. This is a full off-switch, not just an auth gate.
 
@@ -178,7 +178,7 @@ Timinute exposes a [Model Context Protocol](https://modelcontextprotocol.io/) se
 
 ```nginx
 location /mcp {
-    proxy_pass         http://timinute-app:8080;
+    proxy_pass         http://timavo-app:8080;
     proxy_set_header   Host               $host;
     proxy_set_header   X-Forwarded-For    $proxy_add_x_forwarded_for;
     proxy_set_header   X-Forwarded-Proto  $scheme;
@@ -206,7 +206,7 @@ To use an existing PostgreSQL instance instead of the bundled one:
    Then add to `.env`:
 
    ```bash
-   ConnectionStrings__DefaultConnection=Host=your-postgres-host;Port=5432;Database=Timinute;Username=postgres;Password=...
+   ConnectionStrings__DefaultConnection=Host=your-postgres-host;Port=5432;Database=Timavo;Username=postgres;Password=...
    ```
 
 4. `POSTGRES_PASSWORD` is no longer used; remove it from `.env`.
@@ -219,7 +219,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Schema migrations apply automatically on container start (`DatabaseMigrationOnStartup=true`). Schema changes are forward-only: once a newer image migrates the database, you cannot downgrade to an older image. Back up `timinute-data` before upgrading.
+Schema migrations apply automatically on container start (`DatabaseMigrationOnStartup=true`). Schema changes are forward-only: once a newer image migrates the database, you cannot downgrade to an older image. Back up `timavo-data` before upgrading.
 
 ## Disabling auto-migrate
 
@@ -228,9 +228,9 @@ For multi-replica deployments or DBA-managed schemas, disable the automatic migr
 ```bash
 # Step 1: apply migrations with a short-lived container
 docker run --rm \
-    -e ConnectionStrings__DefaultConnection="Host=your-postgres-host;Port=5432;Database=Timinute;..." \
+    -e ConnectionStrings__DefaultConnection="Host=your-postgres-host;Port=5432;Database=Timavo;..." \
     -e DatabaseMigrationOnStartup=true \
-    ghcr.io/nrso2018/timinute:2.2.0
+    ghcr.io/nrso2018/timavo:2.2.0
 # exits 0 once migrations are done
 
 # Step 2: start (or roll) app replicas with migration disabled
@@ -255,7 +255,7 @@ This policy is transparent to most users. It is documented here for operators wh
 
 The `IdentityServer__Authority` value does not match the URL the browser is using. Check three things:
 
-1. `IdentityServer__Authority` in `.env` matches the exact scheme+host the browser hits (e.g. `https://timinute.example.com`, not `http://`).
+1. `IdentityServer__Authority` in `.env` matches the exact scheme+host the browser hits (e.g. `https://timavo.example.com`, not `http://`).
 2. No trailing slash on the value.
 3. If behind a reverse proxy, confirm the proxy is running and routing correctly before diagnosing the app.
 
@@ -275,11 +275,11 @@ The OIDC client (Blazor WASM) validates the `iss` claim in the JWT against the c
 
 **All users are logged out after `docker compose down && docker compose up`**
 
-The `timinute-keys` volume was not persisted. IdentityServer regenerated its signing keys on restart, invalidating every previously issued token. Confirm the volume exists and is mounted:
+The `timavo-keys` volume was not persisted. IdentityServer regenerated its signing keys on restart, invalidating every previously issued token. Confirm the volume exists and is mounted:
 
 ```bash
-docker volume ls | grep timinute-keys
-docker inspect timinute_timinute-keys
+docker volume ls | grep timavo-keys
+docker inspect timavo_timavo-keys
 ```
 
 If the volume was deleted (e.g. via `docker compose down -v`), it cannot be recovered without a backup. All users must log in again. This is expected behavior for a clean teardown — use `docker compose down` (without `-v`) for routine restarts.
@@ -292,7 +292,7 @@ Normal. PostgreSQL initializes its data directory on first start. The healthchec
 docker compose logs db
 ```
 
-Common causes: the `timinute-data` volume was initialized with a different `POSTGRES_PASSWORD` or `POSTGRES_USER` (Postgres only applies these on first init; recreate the volume with `docker compose down -v` to pick up a changed password, noting this destroys all data).
+Common causes: the `timavo-data` volume was initialized with a different `POSTGRES_PASSWORD` or `POSTGRES_USER` (Postgres only applies these on first init; recreate the volume with `docker compose down -v` to pick up a changed password, noting this destroys all data).
 
 **App starts but immediately exits — "Cannot open database" or migration failure**
 
@@ -309,7 +309,7 @@ Confirm your reverse proxy is setting the header. nginx requires the explicit `p
 
 **"CryptographicException: The key {guid} was not found in the key ring"**
 
-This means the data protection keys that were used to encrypt Duende's persisted signing keys are missing. It happens when the `timinute-keys` volume is recreated while Duende still has references to signing keys it encrypted with the old data protection keys. The fix is to restore both from backup, or to accept that existing sessions are invalid and bring up a fresh stack:
+This means the data protection keys that were used to encrypt Duende's persisted signing keys are missing. It happens when the `timavo-keys` volume is recreated while Duende still has references to signing keys it encrypted with the old data protection keys. The fix is to restore both from backup, or to accept that existing sessions are invalid and bring up a fresh stack:
 
 ```bash
 docker compose down -v
@@ -320,7 +320,7 @@ All users will need to log in again after this.
 
 ## Logs
 
-Timinute logs with [Serilog](https://serilog.net/). There are two independent paths.
+Timavo logs with [Serilog](https://serilog.net/). There are two independent paths.
 
 ### Console (always on) — `docker logs`
 
@@ -329,9 +329,9 @@ as **compact JSON** (one object per line), so `docker logs` and any log scraper
 (Loki, Fluent Bit, Datadog) can parse the fields directly.
 
 ```bash
-docker logs -f timinute            # follow live
-docker logs --tail 100 timinute    # last 100 lines
-docker compose logs -f timinute    # via compose
+docker logs -f timavo            # follow live
+docker logs --tail 100 timavo    # last 100 lines
+docker compose logs -f timavo    # via compose
 ```
 
 No volume or configuration is required — this is all most deployments need.
@@ -343,18 +343,18 @@ so the files survive container recreation:
 
 ```yaml
 services:
-  timinute:
+  timavo:
     environment:
       - Serilog__File__Enabled=true
-      - Serilog__File__Path=/logs/timinute-.log
+      - Serilog__File__Path=/logs/timavo-.log
       - Serilog__File__RetainedFileCountLimit=14
     volumes:
-      - timinute-logs:/logs
+      - timavo-logs:/logs
 volumes:
-  timinute-logs:
+  timavo-logs:
 ```
 
-Read them with `docker exec timinute ls /logs`. Without a mounted volume the files live
+Read them with `docker exec timavo ls /logs`. Without a mounted volume the files live
 in the container's ephemeral filesystem and disappear when the container is recreated.
 
 ### Log levels

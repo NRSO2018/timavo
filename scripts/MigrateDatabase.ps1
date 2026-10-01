@@ -2,9 +2,9 @@ $location = Get-Location;
 
 dotnet tool install --global dotnet-ef
 
-Set-Location "../Timinute";
+Set-Location "../Timavo";
 
-$startupProject = Get-Childitem -Include Timinute.Server.csproj -Recurse
+$startupProject = Get-Childitem -Include Timavo.Server.csproj -Recurse
 Write-Host -NoNewline "Applying migrations for ";
 Write-Host -ForegroundColor Yellow $file.Name;
 

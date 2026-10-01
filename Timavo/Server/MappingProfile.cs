@@ -1,0 +1,58 @@
+using AutoMapper;
+using Timavo.Server.Models;
+using Timavo.Shared.Dtos;
+using Timavo.Shared.Dtos.Project;
+using Timavo.Shared.Dtos.Tag;
+using Timavo.Shared.Dtos.TrackedTask;
+
+namespace Timavo.Server
+{
+    public class MappingProfile : Profile
+    {
+        public MappingProfile()
+        {
+            // TrackedTask model
+            CreateMap<TrackedTask, TrackedTaskDto>();
+            CreateMap<TrackedTaskDto, TrackedTask>();
+
+            CreateMap<TrackedTask, CreateTrackedTaskDto>();
+            CreateMap<CreateTrackedTaskDto, TrackedTask>()
+                // Project is linked via the ownership-checked ProjectId only; mapping the nested
+                // DTO would attach a client-supplied Project entity to the insert graph.
+                .ForMember(d => d.Project, o => o.Ignore());
+
+            CreateMap<TrackedTask, UpdateTrackedTaskDto>();
+            CreateMap<UpdateTrackedTaskDto, TrackedTask>()
+                .ForMember(d => d.Project, o => o.Ignore());
+
+            // Project model
+            CreateMap<Project, ProjectDto>();
+            CreateMap<ProjectDto, Project>();
+
+            CreateMap<Project, CreateProjectDto>();
+            CreateMap<CreateProjectDto, Project>();
+
+            CreateMap<Project, UpdateProjectDto>();
+            CreateMap<UpdateProjectDto, Project>()
+                // Don't blank out a saved Color when an update arrives without one.
+                // A future "edit name only" flow shouldn't wipe the color picker choice.
+                .ForMember(d => d.Color, o => o.Condition(src => !string.IsNullOrWhiteSpace(src.Color)));
+
+            // Tag model
+            CreateMap<Tag, TagDto>()
+                .ForMember(d => d.TaskCount, o => o.Ignore());
+            CreateMap<TagDto, Tag>()
+                .ForMember(d => d.User, o => o.Ignore())
+                .ForMember(d => d.TrackedTasks, o => o.Ignore());
+
+            // Application User model
+            CreateMap<ApplicationUser, ApplicationUserDto>();
+            CreateMap<ApplicationUserDto, ApplicationUser>();
+
+            // User preferences
+            CreateMap<UserPreferences, UserPreferencesDto>();
+            CreateMap<UserPreferencesDto, UserPreferences>();
+            CreateMap<UpdateUserPreferencesDto, UserPreferences>();
+        }
+    }
+}

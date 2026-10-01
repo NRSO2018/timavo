@@ -1,12 +1,12 @@
 ---
 name: new-spec
-description: Use when the user runs /new-spec <feature-name> to scaffold a Timinute design spec in docs/superpowers/specs/ following the house template and spec-first workflow.
+description: Use when the user runs /new-spec <feature-name> to scaffold a Timavo design spec in docs/superpowers/specs/ following the house template and spec-first workflow.
 disable-model-invocation: true
 ---
 
-# Scaffold a Timinute design spec
+# Scaffold a Timavo design spec
 
-Timinute is spec-first: every non-trivial feature gets a design doc in `docs/superpowers/specs/` **before** implementation, and the roadmap (`docs/superpowers/plans/feature-roadmap.md`) tracks scope. This skill creates that doc from the house template. The argument is a short feature name/slug (e.g. `pomodoro-timer`). If none was given, ask — never invent the feature.
+Timavo is spec-first: every non-trivial feature gets a design doc in `docs/superpowers/specs/` **before** implementation, and the roadmap (`docs/superpowers/plans/feature-roadmap.md`) tracks scope. This skill creates that doc from the house template. The argument is a short feature name/slug (e.g. `pomodoro-timer`). If none was given, ask — never invent the feature.
 
 ## Steps
 

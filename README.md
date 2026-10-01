@@ -1,10 +1,10 @@
-# Timinute
+# Timavo
 
-[![Release](https://github.com/jame581/Timinute/actions/workflows/release.yml/badge.svg)](https://github.com/jame581/Timinute/actions/workflows/release.yml)
-[![Latest release](https://img.shields.io/github/v/release/jame581/Timinute)](https://github.com/jame581/Timinute/releases/latest)
+[![Release](https://github.com/NRSO2018/timavo/actions/workflows/release.yml/badge.svg)](https://github.com/NRSO2018/timavo/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/NRSO2018/timavo)](https://github.com/NRSO2018/timavo/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
-[![Docker](https://img.shields.io/badge/ghcr.io-jame581%2Ftiminute-blue?logo=docker)](https://github.com/jame581/Timinute/pkgs/container/timinute)
+[![Docker](https://img.shields.io/badge/ghcr.io-NRSO2018%2Ftimavo-blue?logo=docker)](https://github.com/NRSO2018/timavo/pkgs/container/timavo)
 
 The free, open-source time tracker that respects your minutes. Track work hours across projects, see exactly where your time goes, and get clear weekly overviews — all in a self-hostable Blazor WebAssembly app.
 
@@ -65,8 +65,8 @@ Originally a demo of modern Blazor; now fully redesigned around the **Aurora** v
 
 ```powershell
 # 1. clone
-git clone https://github.com/jame581/Timinute.git
-cd Timinute
+git clone https://github.com/NRSO2018/timavo.git
+cd Timavo
 
 # 2. start a local PostgreSQL 16 container on port 5432
 .\scripts\SetupDockerPostgres.ps1
@@ -75,12 +75,12 @@ cd Timinute
 .\scripts\MigrateDatabase.ps1
 
 # 4. run the app (server hosts the WASM client)
-dotnet run --project Timinute/Server/Timinute.Server.csproj
+dotnet run --project Timavo/Server/Timavo.Server.csproj
 ```
 
 Default URLs: <https://localhost:7047> / <http://localhost:5047>. Swagger lives at `/swagger`.
 
-> **DB password:** a single environment variable, `POSTGRES_PASSWORD`, drives the PostgreSQL password everywhere — the local dev container (`SetupDockerPostgres.ps1`), the app, and docker-compose. Leave it unset and everything defaults to `TiminuteAdmin.` (as shipped in `appsettings.json`). Set it to use your own password; if you change it after the container already exists, re-run `SetupDockerPostgres.ps1` to recreate the container on the new password.
+> **DB password:** a single environment variable, `POSTGRES_PASSWORD`, drives the PostgreSQL password everywhere — the local dev container (`SetupDockerPostgres.ps1`), the app, and docker-compose. Leave it unset and everything defaults to `TimavoAdmin.` (as shipped in `appsettings.json`). Set it to use your own password; if you change it after the container already exists, re-run `SetupDockerPostgres.ps1` to recreate the container on the new password.
 
 Seeded test users (passwords are intentionally trivial — local dev only):
 
@@ -93,8 +93,8 @@ Seeded test users (passwords are intentionally trivial — local dev only):
 ## Run with Docker
 
 ```bash
-git clone https://github.com/jame581/Timinute.git
-cd Timinute
+git clone https://github.com/NRSO2018/timavo.git
+cd Timavo
 cp .env.example .env
 # edit .env: set POSTGRES_PASSWORD and IdentityServer__Authority
 docker compose up -d
@@ -104,7 +104,7 @@ The app comes up on `http://localhost:8080`. For real deployments, put a TLS-ter
 
 ## AI / MCP
 
-Timinute hosts a [Model Context Protocol](https://modelcontextprotocol.io/) server at `/mcp`, so an AI assistant like Claude Code or Claude Desktop can query and (optionally) log your time using a personal access token you create at `/settings/tokens`. Tokens are scoped `read` or `read_write`, shown once at creation, and every tool call is recorded to an AI activity log at `/settings/ai-activity`. See [`docs/MCP.md`](docs/MCP.md) for the connection guide and security notes.
+Timavo hosts a [Model Context Protocol](https://modelcontextprotocol.io/) server at `/mcp`, so an AI assistant like Claude Code or Claude Desktop can query and (optionally) log your time using a personal access token you create at `/settings/tokens`. Tokens are scoped `read` or `read_write`, shown once at creation, and every tool call is recorded to an AI activity log at `/settings/ai-activity`. See [`docs/MCP.md`](docs/MCP.md) for the connection guide and security notes.
 
 ## Production deployment
 
@@ -113,21 +113,21 @@ The defaults in `appsettings.json` are tuned for local development on `https://l
 **1. IdentityServer authority** — JWT issuer + OIDC discovery endpoint. If left at the localhost default, tokens issued by your deployed instance will be rejected at validation. Override via env var:
 
 ```bash
-IdentityServer__Authority=https://timinute.example.com
+IdentityServer__Authority=https://timavo.example.com
 ```
 
 …or in `appsettings.Production.json`:
 
 ```json
 {
-  "IdentityServer": { "Authority": "https://timinute.example.com" }
+  "IdentityServer": { "Authority": "https://timavo.example.com" }
 }
 ```
 
 **2. Connection string** — `appsettings.json` ships with the local Docker password so `dotnet run` works out of the box. Override for production:
 
 ```bash
-ConnectionStrings__DefaultConnection="Host=...;Port=5432;Database=Timinute;Username=...;Password=..."
+ConnectionStrings__DefaultConnection="Host=...;Port=5432;Database=Timavo;Username=...;Password=..."
 ```
 
 **3. Persistent `/keys` directory** — Duende IdentityServer uses automatic key management in production and writes rotating signing keys to `/keys`. On ephemeral hosts (Docker without a volume mount, App Service slot swaps, scaled-out replicas) this directory disappears or differs per instance, which invalidates JWTs after restart and breaks load balancing. Mount a persistent volume at the container's `/keys` (or override the path via `IdentityServer:KeyManagement:KeyPath` if your hosting prefers a different location).
@@ -135,7 +135,7 @@ ConnectionStrings__DefaultConnection="Host=...;Port=5432;Database=Timinute;Usern
 For Docker:
 
 ```bash
-docker run -v timinute-keys:/keys ...
+docker run -v timavo-keys:/keys ...
 ```
 
 > **v2.0 migration note:** the migration from IdentityServer4 to Duende dropped the IS4-era `DeviceCodes` / `Keys` / `PersistedGrants` tables. If you're upgrading a database that contained any IS4 grant data, that data is lost — log all users out and have them re-authenticate post-deploy.
@@ -145,7 +145,7 @@ docker run -v timinute-keys:/keys ...
 ## Project layout
 
 ```
-Timinute/
+Timavo/
   Server/         ASP.NET Core Web API + Identity + IdentityServer
   Client/         Blazor WebAssembly SPA (Aurora design system)
   Shared/         DTOs shared between client and server
@@ -161,11 +161,9 @@ docs/superpowers/
 
 See [`docs/superpowers/plans/feature-roadmap.md`](docs/superpowers/plans/feature-roadmap.md) for the current feature set, P1/P2 backlog, and tech-debt list. Active design specs live alongside in `docs/superpowers/specs/`.
 
-## Author
+## Credits
 
-**Jan Mesarč** — *Creator* — [jame581](https://github.com/jame581)
-
-If Timinute is useful to you, [Buy Me A Coffee](https://www.buymeacoffee.com/jame581) ☕.
+Timavo is a fork of [Timinute](https://github.com/jame581/Timinute) by Jan Mesarč ([jame581](https://github.com/jame581)), used and extended under its MIT license.
 
 ## License
 

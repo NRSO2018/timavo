@@ -5,14 +5,14 @@ ARG TARGETARCH
 WORKDIR /src
 
 # csproj-only first → restore layer caches well
-COPY Timinute.sln ./
-COPY Timinute/Server/Timinute.Server.csproj  Timinute/Server/
-COPY Timinute/Client/Timinute.Client.csproj  Timinute/Client/
-COPY Timinute/Shared/Timinute.Shared.csproj  Timinute/Shared/
-RUN dotnet restore Timinute/Server/Timinute.Server.csproj -a $TARGETARCH
+COPY Timavo.sln ./
+COPY Timavo/Server/Timavo.Server.csproj  Timavo/Server/
+COPY Timavo/Client/Timavo.Client.csproj  Timavo/Client/
+COPY Timavo/Shared/Timavo.Shared.csproj  Timavo/Shared/
+RUN dotnet restore Timavo/Server/Timavo.Server.csproj -a $TARGETARCH
 
 COPY . .
-RUN dotnet publish Timinute/Server/Timinute.Server.csproj \
+RUN dotnet publish Timavo/Server/Timavo.Server.csproj \
         -c Release -a $TARGETARCH --no-restore -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
@@ -29,4 +29,4 @@ EXPOSE 8080
 # VOLUME is metadata; the actual /keys directory was created and chowned
 # earlier (as root) before the USER switch.
 VOLUME ["/keys"]
-ENTRYPOINT ["dotnet", "Timinute.Server.dll"]
+ENTRYPOINT ["dotnet", "Timavo.Server.dll"]

@@ -6,7 +6,7 @@ Guidance for Claude Code (claude.ai/code) when working in this repository.
 
 ## What this is
 
-Timinute — a self-hostable time tracker built as a hosted Blazor WebAssembly app on .NET 10. The Server project hosts the WASM Client and exposes the API; there is one deployable unit.
+Timavo — a self-hostable time tracker built as a hosted Blazor WebAssembly app on .NET 10. The Server project hosts the WASM Client and exposes the API; there is one deployable unit.
 
 ## Branches & releases
 
@@ -19,20 +19,20 @@ Timinute — a self-hostable time tracker built as a hosted Blazor WebAssembly a
 
 ```powershell
 # Build & test (what CI runs)
-dotnet build Timinute.sln --configuration Release
-dotnet test Timinute.sln
+dotnet build Timavo.sln --configuration Release
+dotnet test Timavo.sln
 
 # Single test / single class
-dotnet test Timinute/Server.Tests/Timinute.Server.Tests.csproj --filter "FullyQualifiedName~ProjectControllerTest"
+dotnet test Timavo/Server.Tests/Timavo.Server.Tests.csproj --filter "FullyQualifiedName~ProjectControllerTest"
 
 # Run the app (Server hosts the WASM client; https://localhost:7047, Swagger at /swagger in Development)
-dotnet run --project Timinute/Server/Timinute.Server.csproj
+dotnet run --project Timavo/Server/Timavo.Server.csproj
 
 # Local infra (from repo root)
 .\scripts\SetupDockerPostgres.ps1  # PostgreSQL 16 container on port 5432
 .\scripts\MigrateDatabase.ps1      # apply EF Core migrations
 # One env var, POSTGRES_PASSWORD, drives the password for the container, the app,
-# and docker-compose; unset -> defaults to TiminuteAdmin. (see appsettings.json).
+# and docker-compose; unset -> defaults to TimavoAdmin. (see appsettings.json).
 # Program.cs only substitutes it when the connection string still carries that default.
 
 # New migration (run from scripts/ — paths are relative to it)
@@ -44,7 +44,7 @@ Seeded dev users: `test1@email.com` / `test2@email.com` / `test3@email.com` (Bas
 ## Solution layout
 
 ```
-Timinute/
+Timavo/
   Server/         ASP.NET Core API + ASP.NET Identity + Duende IdentityServer; hosts the Client
   Client/         Blazor WASM SPA (Aurora design system)
   Shared/         DTOs + custom validation attributes shared by both
@@ -58,7 +58,7 @@ docs/DOCKER.md    Self-host guide
 
 ## Architecture
 
-**Auth is dual-scheme** (`Server/Program.cs`): a policy scheme routes requests with a `Bearer` header to JWT validation (audience `Timinute.ServerAPI`) and everything else to the Identity cookie scheme. Duende IdentityServer config (client, scopes, resources) is in-memory in `Program.cs`; the Client authenticates via OIDC code + PKCE. Identity UI (login/register) is server-side Razor Pages under `Server/Areas/Identity`, skinned with `aurora-identity.css`. Roles: Basic, Admin.
+**Auth is dual-scheme** (`Server/Program.cs`): a policy scheme routes requests with a `Bearer` header to JWT validation (audience `Timavo.ServerAPI`) and everything else to the Identity cookie scheme. Duende IdentityServer config (client, scopes, resources) is in-memory in `Program.cs`; the Client authenticates via OIDC code + PKCE. Identity UI (login/register) is server-side Razor Pages under `Server/Areas/Identity`, skinned with `aurora-identity.css`. Roles: Basic, Admin.
 
 **Data access** goes through a generic repository + factory (`Server/Repository/`): controllers take `IRepositoryFactory` and create `IRepository<TEntity>`. The repository provides paging (`GetPaged` with dynamic-LINQ `orderBy` strings), string-based `includeProperties`, and soft delete (`SoftDelete`/`Restore`/`GetDeleted`/`PurgeExpired`). Soft delete is enforced by an EF **global query filter** — read the `CountAll` vs `CountAsync` and `SumAsync` doc comments in `IRepository.cs` before adding aggregate queries; some aggregates deliberately materialize client-side because they don't translate to SQL.
 
@@ -76,12 +76,12 @@ docs/DOCKER.md    Self-host guide
 
 - `Server.Tests/Helpers/TestHelper.cs` builds contexts two ways: `GetDefaultApplicationDbContext` (EF InMemory, seeded fixture) and `GetSqliteApplicationDbContext` (in-memory SQLite over a caller-owned open connection). **InMemory silently client-evaluates queries that fail SQL translation and ignores unique constraints — use the SQLite helper for any test that must prove a query translates** (aggregates, paging over includes). SQLite relies on the model's `HasData` seed via `EnsureCreatedAsync`, not `FillInitData`.
 - Controller tests inherit `ControllerTestBase`; client component tests use bUnit with `StubHttpMessageHandler`.
-- `Server.Tests/Integration/` drives the real pipeline through `WebApplicationFactory<Program>` (`TiminuteApiFactory` + a test auth scheme) — that's how the `[ApiController]` 422 short-circuit is covered. Swapping the DB provider there needs `RemoveAll(typeof(IDbContextOptionsConfiguration<ApplicationDbContext>))` **in addition to** `DbContextOptions<>`, or startup dies with "multiple database providers registered".
+- `Server.Tests/Integration/` drives the real pipeline through `WebApplicationFactory<Program>` (`TimavoApiFactory` + a test auth scheme) — that's how the `[ApiController]` 422 short-circuit is covered. Swapping the DB provider there needs `RemoveAll(typeof(IDbContextOptionsConfiguration<ApplicationDbContext>))` **in addition to** `DbContextOptions<>`, or startup dies with "multiple database providers registered".
 - The SQLite provider can't translate `DateTimeOffset` range comparisons, so `OnModelCreating` applies a provider-guarded `DateTimeOffsetToBinaryConverter`. Its binary ordering is only correct because every persisted date is UTC — seed SQLite-backed tests with `TimeSpan.Zero` offsets only.
 
 ## Claude Code automation in this repo
 
-- **Hooks** (`.claude/settings.json` + `.claude/hooks/*.ps1`): edits to `.env`, `Timinute/Server/keys/`, or `tempkey.jwk` are blocked; every `.cs` edit is whitespace-formatted via `dotnet format` against `.editorconfig`.
+- **Hooks** (`.claude/settings.json` + `.claude/hooks/*.ps1`): edits to `.env`, `Timavo/Server/keys/`, or `tempkey.jwk` are blocked; every `.cs` edit is whitespace-formatted via `dotnet format` against `.editorconfig`.
 - **Skills**: `/add-migration <Name>` runs the full EF migration flow (generate → verify snapshot diff → apply → test); the `verify` skill covers launching the app and driving changes end-to-end.
 - **Subagents**: run `ef-repository-reviewer` after changing controllers/repositories/EF queries, and `auth-config-reviewer` after touching Program.cs auth, Identity, cookies, forwarded headers, or key management — both before committing.
 

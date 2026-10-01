@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Use when a change to Timinute needs to be confirmed working in the real running app — launching the app locally, logging in, and driving the affected pages end-to-end (not just tests).
+description: Use when a change to Timavo needs to be confirmed working in the real running app — launching the app locally, logging in, and driving the affected pages end-to-end (not just tests).
 ---
 
 # Verify a change in the running app
@@ -8,10 +8,10 @@ description: Use when a change to Timinute needs to be confirmed working in the 
 ## Launch
 
 1. Prereqs: .NET 10 SDK, Docker Desktop running, trusted dev cert (`dotnet dev-certs https --check --trust`).
-2. DB container: check `docker ps -a --filter name=timinute.postgres` FIRST. **`scripts\SetupDockerPostgres.ps1` force-removes an existing container and wipes its data** — only run it when the container is absent. Then `.\scripts\MigrateDatabase.ps1` (idempotent).
-3. `dotnet build Timinute.sln` to fail fast, then run in a background shell:
+2. DB container: check `docker ps -a --filter name=timavo.postgres` FIRST. **`scripts\SetupDockerPostgres.ps1` force-removes an existing container and wipes its data** — only run it when the container is absent. Then `.\scripts\MigrateDatabase.ps1` (idempotent).
+3. `dotnet build Timavo.sln` to fail fast, then run in a background shell:
    ```powershell
-   dotnet run --project Timinute/Server/Timinute.Server.csproj
+   dotnet run --project Timavo/Server/Timavo.Server.csproj
    ```
    Wait for `Now listening on: https://localhost:7047`. Smoke: `https://localhost:7047` (landing) and `/swagger` (API + IdentityServer up).
 
@@ -25,7 +25,7 @@ description: Use when a change to Timinute needs to be confirmed working in the 
 - Exercise **every entry point** of the changed component — shared dialogs/components are typically reachable from more than one page (e.g. the task edit dialog opens from both `/trackedtasks` and `/scheduler`, with separate result-handling code at each call site).
 - Prove persistence, not client state: after saving, hard-refresh (Ctrl+F5) and confirm values survived. For DB-level certainty:
   ```powershell
-  docker exec timinute.postgres psql -U postgres -d Timinute -c "<query>"
+  docker exec timavo.postgres psql -U postgres -d Timavo -c "<query>"
   ```
 - Also hit the negative paths (validation messages block save) and, for deletes, the undo toast → restore.
 
